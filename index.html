@@ -22,6 +22,22 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
     <link rel="stylesheet" href="/src/client/style.css" />
+
+    <!-- Immediate PWA Prompt Capture & Service Worker Activation -->
+    <script>
+      window.__pwaPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__pwaPrompt = e;
+        console.log('[RunCraft PWA] beforeinstallprompt captured early');
+        window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
+      });
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(e) {
+          console.warn('[RunCraft SW] register note:', e);
+        });
+      }
+    </script>
   </head>
   <body>
     <!-- Top Navigation Bar -->
@@ -56,7 +72,7 @@
       <!-- Left Sidebar: Workout & Photo Ingestion -->
       <aside class="panel panel-left">
         <!-- 1. Activity Data Sources -->
-        <section class="studio-section" data-section="workouts">
+        <section class="studio-section active-mobile-section" data-section="workouts">
           <div class="section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
             Workout Data Source
@@ -249,17 +265,17 @@
 
       <!-- Mobile Category Navigation Tab Bar (Active on Mobile screens) -->
       <nav class="mobile-tabs-bar" id="mobileTabsBar">
-        <button class="mobile-tab-btn active" data-tab="metrics">
+        <button class="mobile-tab-btn active" data-tab="workouts">
+          <span class="tab-icon">🏃</span>
+          <span class="tab-label">Workouts</span>
+        </button>
+        <button class="mobile-tab-btn" data-tab="metrics">
           <span class="tab-icon">📊</span>
           <span class="tab-label">Metrics</span>
         </button>
         <button class="mobile-tab-btn" data-tab="style">
           <span class="tab-icon">🎨</span>
           <span class="tab-label">Style</span>
-        </button>
-        <button class="mobile-tab-btn" data-tab="workouts">
-          <span class="tab-icon">🏃</span>
-          <span class="tab-label">Workouts</span>
         </button>
         <button class="mobile-tab-btn" data-tab="photo">
           <span class="tab-icon">📷</span>
@@ -278,7 +294,7 @@
       <!-- Right Sidebar: Overlay Styling & Widgets -->
       <aside class="panel panel-right">
         <!-- Section: Individual Workout Metrics (Hero & Secondary Toggles) -->
-        <section class="studio-section active-mobile-section" data-section="metrics">
+        <section class="studio-section" data-section="metrics">
           <div class="section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
             Workout Metrics Toggles
@@ -632,16 +648,5 @@
 
     <!-- PWA Service Worker Registration & App Orchestrator -->
     <script type="module" src="/src/client/main.ts"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            reg.update();
-          }).catch((err) => {
-            console.log('SW registration note:', err);
-          });
-        });
-      }
-    </script>
   </body>
 </html>

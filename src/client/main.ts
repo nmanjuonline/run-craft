@@ -133,10 +133,26 @@ function setupPwa() {
     return;
   }
 
+  // Intercept early prompt from <head> inline script
+  if ((window as any).__pwaPrompt) {
+    deferredPrompt = (window as any).__pwaPrompt;
+    if (pwaModalInstallActionBtn) {
+      pwaModalInstallActionBtn.style.display = 'block';
+    }
+  }
+
+  window.addEventListener('pwa-prompt-ready', () => {
+    deferredPrompt = (window as any).__pwaPrompt;
+    if (pwaModalInstallActionBtn) {
+      pwaModalInstallActionBtn.style.display = 'block';
+    }
+  });
+
   // Intercept Chrome/Edge/Android native prompt
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
+    (window as any).__pwaPrompt = e;
     if (pwaModalInstallActionBtn) {
       pwaModalInstallActionBtn.style.display = 'block';
     }
@@ -144,27 +160,42 @@ function setupPwa() {
 
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
+    (window as any).__pwaPrompt = null;
     if (installPwaBtn) installPwaBtn.style.display = 'none';
     if (pwaInstallModal) pwaInstallModal.classList.remove('open');
     showToast('✨ RunCraft installed successfully!');
   });
 
   if (installPwaBtn) {
-    installPwaBtn.addEventListener('click', () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then(({ outcome }: any) => {
-          if (outcome === 'accepted') {
+    installPwaBtn.addEventListener('click', async () => {
+      const promptToUse = deferredPrompt || (window as any).__pwaPrompt;
+
+      if (promptToUse) {
+        try {
+          promptToUse.prompt();
+          const choice = await promptToUse.userChoice;
+          if (choice && choice.outcome === 'accepted') {
             installPwaBtn.style.display = 'none';
-            showToast('✨ RunCraft installed successfully!');
+            showToast('✨ RunCraft installed to your device!');
           }
           deferredPrompt = null;
-        });
+          (window as any).__pwaPrompt = null;
+        } catch (err) {
+          console.warn('Direct installation prompt error:', err);
+        }
         return;
       }
 
-      // If native prompt is not available (iOS Safari, desktop without prompt), open guidance modal
-      openPwaGuidanceModal();
+      // If on iOS Safari (where Apple does not support programmatic prompt APIs)
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      if (isIOS || isSafari) {
+        openPwaGuidanceModal();
+        return;
+      }
+
+      // If Chromium / Edge desktop where prompt hasn't fired or is suppressed
+      showToast('⚡ Direct installation: Click the (⊕) install button on the right of your address bar.');
     });
   }
 
@@ -181,15 +212,17 @@ function setupPwa() {
 
   if (pwaModalInstallActionBtn) {
     pwaModalInstallActionBtn.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
+      const promptToUse = deferredPrompt || (window as any).__pwaPrompt;
+      if (promptToUse) {
+        promptToUse.prompt();
+        const { outcome } = await promptToUse.userChoice;
         if (outcome === 'accepted') {
           if (installPwaBtn) installPwaBtn.style.display = 'none';
           if (pwaInstallModal) pwaInstallModal.classList.remove('open');
           showToast('✨ RunCraft installed successfully!');
         }
         deferredPrompt = null;
+        (window as any).__pwaPrompt = null;
       }
     });
   }
@@ -615,6 +648,17 @@ function setupToggles() {
 function setupMobileTabs() {
   const tabBtns = document.querySelectorAll<HTMLButtonElement>('.mobile-tab-btn');
   const sections = document.querySelectorAll<HTMLElement>('.studio-section');
+
+  // Sync initial tab state on mobile (Workouts is first tab)
+  const activeTabBtn = document.querySelector<HTMLButtonElement>('.mobile-tab-btn.active');
+  const initialTab = activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'workouts';
+  sections.forEach((sec) => {
+    if (sec.getAttribute('data-section') === initialTab) {
+      sec.classList.add('active-mobile-section');
+    } else {
+      sec.classList.remove('active-mobile-section');
+    }
+  });
 
   tabBtns.forEach((btn) => {
     btn.addEventListener('click', () => {

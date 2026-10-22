@@ -722,10 +722,11 @@ function setupMobileTabs() {
         }
       });
 
-      // Smooth scroll slightly down to section on mobile
-      const activeSec = document.querySelector(`.studio-section[data-section="${targetTab}"]`);
-      if (activeSec && window.innerWidth <= 991) {
-        activeSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // On mobile split-screen, reset controls scroll to top so top of section is immediately visible below canvas
+      if (window.innerWidth <= 991) {
+        document.querySelectorAll<HTMLElement>('.panel-left, .panel-right').forEach((p) => {
+          p.scrollTop = 0;
+        });
       }
     });
   });

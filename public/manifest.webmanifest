@@ -1,7 +1,6 @@
 {
   "name": "RunCraft",
   "short_name": "RunCraft",
-  "id": "/",
   "description": "Create stunning workout photo overlays with Strava and Garmin metrics.",
   "start_url": "/",
   "scope": "/",

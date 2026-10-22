@@ -100,13 +100,6 @@ const editLocationInput = document.getElementById('editLocationInput') as HTMLIn
 // Action Buttons
 const downloadBtn = document.getElementById('downloadBtn') as HTMLButtonElement;
 const shareBtn = document.getElementById('shareBtn') as HTMLButtonElement;
-const installPwaBtn = document.getElementById('installPwaBtn') as HTMLButtonElement | null;
-
-// PWA Modal Elements
-const pwaInstallModal = document.getElementById('pwaInstallModal') as HTMLElement | null;
-const closePwaInstallModalBtn = document.getElementById('closePwaInstallModalBtn') as HTMLButtonElement | null;
-const pwaInstructionsContainer = document.getElementById('pwaInstructionsContainer') as HTMLElement | null;
-const pwaModalInstallActionBtn = document.getElementById('pwaModalInstallActionBtn') as HTMLButtonElement | null;
 
 // Strava Modal
 const stravaConnectBtn = document.getElementById('stravaConnectBtn') as HTMLButtonElement;
@@ -120,14 +113,8 @@ const stravaTokenSubmitBtn = document.getElementById('stravaTokenSubmitBtn') as 
 const stravaAuthProceedBtn = document.getElementById('stravaAuthProceedBtn') as HTMLButtonElement;
 const stravaStatusAlert = document.getElementById('stravaStatusAlert') as HTMLElement;
 
-// PWA Install Prompt State
-let deferredPrompt: any = null;
-
-function isPwaInstalled(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
-}
-
 function setupPwa() {
+  // 1. Check if already running in standalone PWA mode
   const isStandalone =
     window.matchMedia('(display-mode: standalone)').matches ||
     (navigator as any).standalone === true ||
@@ -138,47 +125,51 @@ function setupPwa() {
   const bannerDismissBtn = document.getElementById('pwaBannerDismissBtn');
 
   if (isStandalone) {
-    if (installPwaBtn) installPwaBtn.style.display = 'none';
     if (pwaBanner) pwaBanner.style.display = 'none';
     return;
   }
 
-  // Clear legacy lockout
+  // 2. Clear any legacy localStorage lockout from previous dismissal
   try {
     localStorage.removeItem('rrc_pwa_dismissed_at');
     localStorage.removeItem('rc_pwa_dismissed');
+    localStorage.removeItem('runcraft_pwa_dismissed');
   } catch {}
 
+  // 3. Only check current session dismissal
+  if (sessionStorage.getItem('rc_pwa_dismissed') === 'true') {
+    return;
+  }
+
   function showBanner() {
-    if (sessionStorage.getItem('runcraft_pwa_dismissed') === 'true') return;
+    if (sessionStorage.getItem('rc_pwa_dismissed') === 'true') return;
     if (pwaBanner) pwaBanner.style.display = 'flex';
   }
 
   function hideBanner() {
     if (pwaBanner) pwaBanner.style.display = 'none';
-    sessionStorage.setItem('runcraft_pwa_dismissed', 'true');
+    sessionStorage.setItem('rc_pwa_dismissed', 'true');
   }
 
   bannerDismissBtn?.addEventListener('click', hideBanner);
 
-  // Capture prompt from early head script or events
-  let localDeferredPrompt: any = (window as any).__deferredPrompt || (window as any).__pwaPrompt || null;
-  if (localDeferredPrompt) {
+  // 4. Capture prompt from early head script or events (exact race-craft logic)
+  let deferredPrompt: any = (window as any).__deferredPrompt || null;
+  if (deferredPrompt) {
     showBanner();
   }
 
   const handlePrompt = (e: Event) => {
     e.preventDefault();
-    localDeferredPrompt = e;
+    deferredPrompt = e;
     (window as any).__deferredPrompt = e;
-    (window as any).__pwaPrompt = e;
     showBanner();
   };
 
   const handlePromptReady = () => {
-    const prompt = (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+    const prompt = (window as any).__deferredPrompt;
     if (prompt) {
-      localDeferredPrompt = prompt;
+      deferredPrompt = prompt;
       showBanner();
     }
   };
@@ -186,91 +177,87 @@ function setupPwa() {
   window.addEventListener('beforeinstallprompt', handlePrompt);
   window.addEventListener('pwa-prompt-ready', handlePromptReady);
 
-  // Ensure banner displays on non-standalone browsers after brief delay
-  setTimeout(() => {
-    if (sessionStorage.getItem('runcraft_pwa_dismissed') !== 'true') {
+  // 5. Ensure banner displays on non-standalone browsers after a brief delay
+  const timer = setTimeout(() => {
+    if (sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
       showBanner();
     }
   }, 400);
 
   window.addEventListener('appinstalled', () => {
-    localDeferredPrompt = null;
+    deferredPrompt = null;
     (window as any).__deferredPrompt = null;
-    (window as any).__pwaPrompt = null;
-    if (installPwaBtn) installPwaBtn.style.display = 'none';
     hideBanner();
     showToast('🎉 RunCraft installed successfully!');
   });
 
-  // Direct installation click handler (race-craft direct prompt pattern)
+  // Direct installation click handler (exact race-craft pattern)
   let isInstalling = false;
   const handleInstallClick = async () => {
-    if (isInstalling) return;
-    isInstalling = true;
-    if (bannerInstallBtn) bannerInstallBtn.textContent = 'Installing...';
+    let prompt = deferredPrompt || (window as any).__deferredPrompt;
 
-    try {
-      let prompt = (window as any).__deferredPrompt;
+    if (!prompt) {
+      isInstalling = true;
+      if (bannerInstallBtn) bannerInstallBtn.textContent = 'Starting...';
+      prompt = await new Promise<any>((resolve) => {
+        let done = false;
+        const check = () => {
+          const p = (window as any).__deferredPrompt;
+          if (p) {
+            done = true;
+            resolve(p);
+            return true;
+          }
+          return false;
+        };
 
-      if (!prompt) {
-        prompt = await new Promise<any>((resolve) => {
-          let done = false;
-          const check = () => {
-            const p = (window as any).__deferredPrompt;
-            if (p) {
-              done = true;
-              resolve(p);
-              return true;
-            }
-            return false;
-          };
+        if (check()) return;
 
-          if (check()) return;
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            resolve((window as any).__deferredPrompt || null);
+          }
+        };
 
-          window.addEventListener('pwa-prompt-ready', () => {
-            if (!done) {
-              done = true;
-              resolve((window as any).__deferredPrompt || null);
-            }
-          }, { once: true });
+        window.addEventListener('pwa-prompt-ready', onReady, { once: true });
+        window.addEventListener('beforeinstallprompt', (e) => {
+          if (!done) {
+            done = true;
+            resolve(e);
+          }
+        }, { once: true });
 
-          window.addEventListener('beforeinstallprompt', (e) => {
-            if (!done) {
-              done = true;
-              resolve(e);
-            }
-          }, { once: true });
+        const interval = setInterval(() => {
+          if (check()) clearInterval(interval);
+        }, 100);
 
-          const interval = setInterval(() => {
-            if (check()) clearInterval(interval);
-          }, 100);
+        setTimeout(() => {
+          clearInterval(interval);
+          if (!done) {
+            done = true;
+            resolve((window as any).__deferredPrompt || null);
+          }
+        }, 3000);
+      });
+      isInstalling = false;
+      if (bannerInstallBtn) bannerInstallBtn.textContent = 'Install';
+    }
 
-          setTimeout(() => {
-            clearInterval(interval);
-            if (!done) {
-              done = true;
-              resolve((window as any).__deferredPrompt || null);
-            }
-          }, 3000);
-        });
-      }
-
-      if (prompt) {
-        try {
-          await prompt.prompt();
-          const choice = await prompt.userChoice;
+    if (prompt) {
+      try {
+        prompt.prompt();
+        prompt.userChoice?.then((choice: any) => {
           if (choice?.outcome === 'accepted') {
             hideBanner();
           }
-        } catch (err) {
-          console.warn('Install prompt error:', err);
-        } finally {
-          (window as any).__deferredPrompt = null;
-        }
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      } finally {
+        deferredPrompt = null;
+        (window as any).__deferredPrompt = null;
       }
-    } finally {
-      isInstalling = false;
-      if (bannerInstallBtn) bannerInstallBtn.textContent = 'Install';
     }
   };
 

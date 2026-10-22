@@ -77,8 +77,19 @@ const toggleGlow = document.getElementById('toggleGlow') as HTMLInputElement;
 const togglePins = document.getElementById('togglePins') as HTMLInputElement;
 const toggleHeader = document.getElementById('toggleHeader') as HTMLInputElement;
 const toggleHeroStats = document.getElementById('toggleHeroStats') as HTMLInputElement;
+const toggleSecondaryStats = document.getElementById('toggleSecondaryStats') as HTMLInputElement | null;
 const toggleHrZones = document.getElementById('toggleHrZones') as HTMLInputElement;
 const toggleWatermark = document.getElementById('toggleWatermark') as HTMLInputElement;
+
+// Individual Metric Toggles
+const toggleMetricDist = document.getElementById('toggleMetricDist') as HTMLInputElement | null;
+const toggleMetricTime = document.getElementById('toggleMetricTime') as HTMLInputElement | null;
+const toggleMetricPace = document.getElementById('toggleMetricPace') as HTMLInputElement | null;
+const toggleMetricEle = document.getElementById('toggleMetricEle') as HTMLInputElement | null;
+const toggleMetricHr = document.getElementById('toggleMetricHr') as HTMLInputElement | null;
+const toggleMetricCadence = document.getElementById('toggleMetricCadence') as HTMLInputElement | null;
+const toggleMetricCalories = document.getElementById('toggleMetricCalories') as HTMLInputElement | null;
+const toggleMetricPower = document.getElementById('toggleMetricPower') as HTMLInputElement | null;
 
 // Inputs
 const editTitleInput = document.getElementById('editTitleInput') as HTMLInputElement;
@@ -90,6 +101,12 @@ const editLocationInput = document.getElementById('editLocationInput') as HTMLIn
 const downloadBtn = document.getElementById('downloadBtn') as HTMLButtonElement;
 const shareBtn = document.getElementById('shareBtn') as HTMLButtonElement;
 const installPwaBtn = document.getElementById('installPwaBtn') as HTMLButtonElement;
+
+// PWA Modal Elements
+const pwaInstallModal = document.getElementById('pwaInstallModal') as HTMLElement | null;
+const closePwaInstallModalBtn = document.getElementById('closePwaInstallModalBtn') as HTMLButtonElement | null;
+const pwaInstructionsContainer = document.getElementById('pwaInstructionsContainer') as HTMLElement | null;
+const pwaModalInstallActionBtn = document.getElementById('pwaModalInstallActionBtn') as HTMLButtonElement | null;
 
 // Strava Modal
 const stravaConnectBtn = document.getElementById('stravaConnectBtn') as HTMLButtonElement;
@@ -103,24 +120,118 @@ const stravaTokenSubmitBtn = document.getElementById('stravaTokenSubmitBtn') as 
 const stravaAuthProceedBtn = document.getElementById('stravaAuthProceedBtn') as HTMLButtonElement;
 const stravaStatusAlert = document.getElementById('stravaStatusAlert') as HTMLElement;
 
-// PWA Install Prompt
+// PWA Install Prompt State
 let deferredPrompt: any = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installPwaBtn.style.display = 'inline-flex';
-});
 
-installPwaBtn.addEventListener('click', async () => {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      installPwaBtn.style.display = 'none';
-    }
-    deferredPrompt = null;
+function isPwaInstalled(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+}
+
+function setupPwa() {
+  if (isPwaInstalled()) {
+    if (installPwaBtn) installPwaBtn.style.display = 'none';
+    return;
   }
-});
+
+  // Intercept Chrome/Edge/Android native prompt
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (pwaModalInstallActionBtn) {
+      pwaModalInstallActionBtn.style.display = 'block';
+    }
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    if (installPwaBtn) installPwaBtn.style.display = 'none';
+    if (pwaInstallModal) pwaInstallModal.classList.remove('open');
+    showToast('✨ RunCraft installed successfully!');
+  });
+
+  if (installPwaBtn) {
+    installPwaBtn.addEventListener('click', () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(({ outcome }: any) => {
+          if (outcome === 'accepted') {
+            installPwaBtn.style.display = 'none';
+            showToast('✨ RunCraft installed successfully!');
+          }
+          deferredPrompt = null;
+        });
+        return;
+      }
+
+      // If native prompt is not available (iOS Safari, desktop without prompt), open guidance modal
+      openPwaGuidanceModal();
+    });
+  }
+
+  if (closePwaInstallModalBtn && pwaInstallModal) {
+    closePwaInstallModalBtn.addEventListener('click', () => {
+      pwaInstallModal.classList.remove('open');
+    });
+    pwaInstallModal.addEventListener('click', (e) => {
+      if (e.target === pwaInstallModal) {
+        pwaInstallModal.classList.remove('open');
+      }
+    });
+  }
+
+  if (pwaModalInstallActionBtn) {
+    pwaModalInstallActionBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          if (installPwaBtn) installPwaBtn.style.display = 'none';
+          if (pwaInstallModal) pwaInstallModal.classList.remove('open');
+          showToast('✨ RunCraft installed successfully!');
+        }
+        deferredPrompt = null;
+      }
+    });
+  }
+}
+
+function openPwaGuidanceModal() {
+  if (!pwaInstallModal || !pwaInstructionsContainer) return;
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+  let html = '';
+  if (isIOS || isSafari) {
+    html = `
+      <div style="font-size: 13px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px;">
+        🍏 iOS Safari Installation
+      </div>
+      <ol style="font-size: 13px; color: var(--text-secondary); line-height: 1.7; padding-left: 20px;">
+        <li>Tap the <strong>Share</strong> button <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; display: inline-block;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> at the bottom of Safari.</li>
+        <li>Scroll down and tap <strong>"Add to Home Screen"</strong> <span style="font-size: 14px;">📲</span>.</li>
+        <li>Tap <strong>"Add"</strong> at the top-right. RunCraft will appear on your Home Screen as an offline-ready app!</li>
+      </ol>
+    `;
+  } else {
+    html = `
+      <div style="font-size: 13px; font-weight: 700; color: var(--accent-lime); margin-bottom: 8px;">
+        🤖 Android / Chrome Installation
+      </div>
+      <ol style="font-size: 13px; color: var(--text-secondary); line-height: 1.7; padding-left: 20px;">
+        <li>Tap the browser menu <strong style="font-size: 16px;">⋮</strong> in the top-right corner.</li>
+        <li>Select <strong>"Install App"</strong> or <strong>"Add to Home screen"</strong>.</li>
+        <li>Confirm to install RunCraft directly on your device.</li>
+      </ol>
+      <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">
+        💻 Desktop users: Look for the install icon <strong>⊕</strong> on the right side of the URL address bar.
+      </div>
+    `;
+  }
+
+  pwaInstructionsContainer.innerHTML = html;
+  pwaInstallModal.classList.add('open');
+}
 
 /**
  * Initialize Canvas & Load Initial Assets
@@ -136,6 +247,8 @@ async function initApp() {
 
   // Setup Event Handlers
   setupTabs();
+  setupMobileTabs();
+  setupPwa();
   setupPhotoUpload();
   setupSliders();
   setupToggles();
@@ -433,6 +546,12 @@ function setupToggles() {
     currentConfig.showHeroStats = toggleHeroStats.checked;
     triggerRender();
   });
+  if (toggleSecondaryStats) {
+    toggleSecondaryStats.addEventListener('change', () => {
+      currentConfig.showSecondaryStats = toggleSecondaryStats.checked;
+      triggerRender();
+    });
+  }
   toggleHrZones.addEventListener('change', () => {
     currentConfig.showHrZones = toggleHrZones.checked;
     triggerRender();
@@ -440,6 +559,83 @@ function setupToggles() {
   toggleWatermark.addEventListener('change', () => {
     currentConfig.showWatermark = toggleWatermark.checked;
     triggerRender();
+  });
+
+  // Individual Metric Toggles
+  if (toggleMetricDist) {
+    toggleMetricDist.addEventListener('change', () => {
+      currentConfig.metrics.distance = toggleMetricDist.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricTime) {
+    toggleMetricTime.addEventListener('change', () => {
+      currentConfig.metrics.time = toggleMetricTime.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricPace) {
+    toggleMetricPace.addEventListener('change', () => {
+      currentConfig.metrics.pace = toggleMetricPace.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricEle) {
+    toggleMetricEle.addEventListener('change', () => {
+      currentConfig.metrics.elevation = toggleMetricEle.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricHr) {
+    toggleMetricHr.addEventListener('change', () => {
+      currentConfig.metrics.heartRate = toggleMetricHr.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricCadence) {
+    toggleMetricCadence.addEventListener('change', () => {
+      currentConfig.metrics.cadence = toggleMetricCadence.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricCalories) {
+    toggleMetricCalories.addEventListener('change', () => {
+      currentConfig.metrics.calories = toggleMetricCalories.checked;
+      triggerRender();
+    });
+  }
+  if (toggleMetricPower) {
+    toggleMetricPower.addEventListener('change', () => {
+      currentConfig.metrics.power = toggleMetricPower.checked;
+      triggerRender();
+    });
+  }
+}
+
+function setupMobileTabs() {
+  const tabBtns = document.querySelectorAll<HTMLButtonElement>('.mobile-tab-btn');
+  const sections = document.querySelectorAll<HTMLElement>('.studio-section');
+
+  tabBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetTab = btn.getAttribute('data-tab');
+      tabBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      sections.forEach((sec) => {
+        if (sec.getAttribute('data-section') === targetTab) {
+          sec.classList.add('active-mobile-section');
+        } else {
+          sec.classList.remove('active-mobile-section');
+        }
+      });
+
+      // Smooth scroll slightly down to section on mobile
+      const activeSec = document.querySelector(`.studio-section[data-section="${targetTab}"]`);
+      if (activeSec && window.innerWidth <= 991) {
+        activeSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
   });
 }
 

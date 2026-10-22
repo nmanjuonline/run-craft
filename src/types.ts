@@ -95,6 +95,17 @@ export interface WidgetPosition {
   scale: number; // 0.5 to 2.0
 }
 
+export interface MetricVisibilityConfig {
+  distance: boolean;
+  time: boolean;
+  pace: boolean;
+  elevation: boolean;
+  heartRate: boolean;
+  cadence: boolean;
+  calories: boolean;
+  power: boolean;
+}
+
 export interface OverlayConfig {
   aspectRatio: AspectRatio;
   theme: OverlayThemeId;
@@ -113,6 +124,7 @@ export interface OverlayConfig {
   watermarkText: string;
   cardOpacity: number; // 0.1 to 1.0
   photoFilters: PhotoFilterSettings;
+  metrics: MetricVisibilityConfig;
   positions: {
     header: WidgetPosition;
     heroStats: WidgetPosition;

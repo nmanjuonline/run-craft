@@ -12,6 +12,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RunCraft" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
 
     <!-- Google Fonts -->
@@ -33,18 +35,18 @@
 
       <div class="nav-actions">
         <button id="intervalsConnectBtn" class="btn btn-primary" title="Auto-Sync Garmin via Intervals.icu" style="background: #00f0ff; color: #0b0f17; box-shadow: 0 4px 16px rgba(0, 240, 255, 0.3);">
-          ⚡ <span id="intervalsBtnLabel">Intervals.icu (Garmin)</span>
+          ⚡ <span id="intervalsBtnLabel" class="btn-text-full">Intervals.icu (Garmin)</span><span class="btn-text-short">Intervals</span>
         </button>
 
-        <button id="stravaConnectBtn" class="btn btn-secondary" title="Connect Strava Account" style="font-size: 13px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <button id="stravaConnectBtn" class="btn btn-secondary" title="Connect Strava Account">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7.008 13.828h4.172"/>
           </svg>
           <span id="stravaBtnLabel">Strava</span>
         </button>
 
-        <button id="installPwaBtn" class="btn btn-secondary" style="display: none;" title="Install as Mobile App">
-          📲 Install App
+        <button id="installPwaBtn" class="btn btn-secondary" title="Install as Mobile App">
+          📲 <span class="btn-text-full">Install App</span><span class="btn-text-short">App</span>
         </button>
       </div>
     </header>
@@ -54,171 +56,175 @@
       <!-- Left Sidebar: Workout & Photo Ingestion -->
       <aside class="panel panel-left">
         <!-- 1. Activity Data Sources -->
-        <div class="section-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-          Workout Data Source
-        </div>
-
-        <div class="card-glass">
-          <div class="segmented-group" style="margin-bottom: 12px; width: 100%;">
-            <button class="segment-btn active" id="tabIntervalsBtn" style="flex: 1.2; color: var(--accent-cyan); font-weight: 800;">⚡ Intervals</button>
-            <button class="segment-btn" id="tabPresetsBtn" style="flex: 0.9;">Presets</button>
-            <button class="segment-btn" id="tabGarminBtn" style="flex: 0.8;">.FIT</button>
-            <button class="segment-btn" id="tabGpxBtn" style="flex: 0.8;">.GPX</button>
+        <section class="studio-section" data-section="workouts">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            Workout Data Source
           </div>
 
-          <!-- Intervals.icu View (Default) -->
-          <div id="viewIntervals" style="display: block;">
-            <div id="intervalsConnectPrompt" style="padding: 10px 4px; text-align: center;">
-              <div style="font-size: 13px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 6px;">
-                ⚡ Auto-Sync Garmin Workouts
-              </div>
-              <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-                Connect Intervals.icu with your free API key to pull your latest Garmin workouts automatically.
-              </p>
-              <button id="openIntervalsModalFromSidebarBtn" class="btn btn-primary" style="width: 100%; font-size: 13px; background: var(--accent-cyan); color: #0b0f17;">
-                Connect Free API Key
-              </button>
+          <div class="card-glass">
+            <div class="segmented-group" style="margin-bottom: 12px; width: 100%;">
+              <button class="segment-btn active" id="tabIntervalsBtn" style="flex: 1.2; color: var(--accent-cyan); font-weight: 800;">⚡ Intervals</button>
+              <button class="segment-btn" id="tabPresetsBtn" style="flex: 0.9;">Presets</button>
+              <button class="segment-btn" id="tabGarminBtn" style="flex: 0.8;">.FIT</button>
+              <button class="segment-btn" id="tabGpxBtn" style="flex: 0.8;">.GPX</button>
             </div>
 
-            <!-- Intervals Connected Toolbar & Controls -->
-            <div id="intervalsControls" style="display: none; margin-bottom: 12px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88;"></span>
-                  <span id="intervalsAthleteLabel" style="font-size: 12px; font-weight: 700; color: var(--accent-cyan);">Garmin Athlete</span>
+            <!-- Intervals.icu View (Default) -->
+            <div id="viewIntervals" style="display: block;">
+              <div id="intervalsConnectPrompt" style="padding: 10px 4px; text-align: center;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 6px;">
+                  ⚡ Auto-Sync Garmin Workouts
                 </div>
-                <div style="display: flex; gap: 4px;">
-                  <button id="intervalsRefreshBtn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; font-weight: 700; border-radius: 6px;" title="Sync latest Garmin workouts">
-                    🔄 Sync
-                  </button>
-                  <button id="intervalsKeyChangeBtn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; border-radius: 6px;" title="Intervals.icu Settings / Key">
-                    ⚙️
-                  </button>
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+                  Connect Intervals.icu with your free API key to pull your latest Garmin workouts automatically.
+                </p>
+                <button id="openIntervalsModalFromSidebarBtn" class="btn btn-primary" style="width: 100%; font-size: 13px; background: var(--accent-cyan); color: #0b0f17;">
+                  Connect Free API Key
+                </button>
+              </div>
+
+              <!-- Intervals Connected Toolbar & Controls -->
+              <div id="intervalsControls" style="display: none; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88;"></span>
+                    <span id="intervalsAthleteLabel" style="font-size: 12px; font-weight: 700; color: var(--accent-cyan);">Garmin Athlete</span>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <button id="intervalsRefreshBtn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; font-weight: 700; border-radius: 6px;" title="Sync latest Garmin workouts">
+                      🔄 Sync
+                    </button>
+                    <button id="intervalsKeyChangeBtn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; border-radius: 6px;" title="Intervals.icu Settings / Key">
+                      ⚙️
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Date Filter Pills -->
+                <div class="segmented-group" id="intervalsDateFilters" style="width: 100%; margin-bottom: 8px;">
+                  <button class="segment-btn" data-days="30" style="flex: 1; padding: 4px 6px; font-size: 11px;">30D</button>
+                  <button class="segment-btn" data-days="90" style="flex: 1; padding: 4px 6px; font-size: 11px;">90D</button>
+                  <button class="segment-btn active" data-days="365" style="flex: 1.2; padding: 4px 6px; font-size: 11px;">1 Year</button>
+                  <button class="segment-btn" data-days="all" style="flex: 1; padding: 4px 6px; font-size: 11px;">All</button>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); padding: 0 2px;">
+                  <span id="intervalsCountBadge">Loading workouts...</span>
+                  <span id="intervalsRangeBadge">Last 365 Days</span>
                 </div>
               </div>
 
-              <!-- Date Filter Pills -->
-              <div class="segmented-group" id="intervalsDateFilters" style="width: 100%; margin-bottom: 8px;">
-                <button class="segment-btn" data-days="30" style="flex: 1; padding: 4px 6px; font-size: 11px;">30D</button>
-                <button class="segment-btn" data-days="90" style="flex: 1; padding: 4px 6px; font-size: 11px;">90D</button>
-                <button class="segment-btn active" data-days="365" style="flex: 1.2; padding: 4px 6px; font-size: 11px;">1 Year</button>
-                <button class="segment-btn" data-days="all" style="flex: 1; padding: 4px 6px; font-size: 11px;">All</button>
+              <div id="intervalsActivityList" class="activity-list" style="display: none;"></div>
+            </div>
+
+            <!-- Presets View -->
+            <div id="viewPresets" class="activity-list" style="display: none;">
+              <!-- Injected by JavaScript -->
+            </div>
+
+            <!-- Garmin FIT Dropzone -->
+            <div id="viewGarmin" class="dropzone" style="display: none;">
+              <div class="dropzone-icon">⌚</div>
+              <div class="dropzone-text">Drop Garmin .FIT File (or Click to Pick)</div>
+              <div class="dropzone-hint" style="line-height: 1.5; margin-top: 6px;">
+                <strong>How to get it:</strong> On Garmin Connect web, open your activity &rarr; click gear ⚙️ &rarr; <em>"Export Original"</em> (or copy from your watch's USB folder).
               </div>
+              <input type="file" id="fitFileInput" accept=".fit" style="display: none;" />
+            </div>
 
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); padding: 0 2px;">
-                <span id="intervalsCountBadge">Loading workouts...</span>
-                <span id="intervalsRangeBadge">Last 365 Days</span>
+            <!-- GPX Dropzone -->
+            <div id="viewGpx" class="dropzone" style="display: none;">
+              <div class="dropzone-icon">📍</div>
+              <div class="dropzone-text">Drop .GPX Workout File (or Click to Pick)</div>
+              <div class="dropzone-hint" style="line-height: 1.5; margin-top: 6px;">
+                <strong>Free Strava Export:</strong> Open any activity on Strava &rarr; click <strong>···</strong> &rarr; <em>"Export GPX"</em>. 100% free with no subscription!
+              </div>
+              <input type="file" id="gpxFileInput" accept=".gpx" style="display: none;" />
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Photo Backdrop & Atmosphere -->
+        <section class="studio-section" data-section="photo">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Backdrop Photo
+          </div>
+
+          <div class="card-glass">
+            <div class="dropzone" id="photoDropzone">
+              <div class="dropzone-icon">📷</div>
+              <div class="dropzone-text">Upload Your Photo</div>
+              <div class="dropzone-hint">PNG, JPG, or Camera Shot (tap to pick)</div>
+              <input type="file" id="photoFileInput" accept="image/*" style="display: none;" />
+            </div>
+
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 14px; margin-bottom: 6px;">
+              Or Choose Pro Sample Photo
+            </div>
+            <div class="sample-thumbs">
+              <div class="sample-thumb active" id="thumbTrail" title="Scenic Ridge Trail Runner">
+                <img src="/samples/sample_trail.jpg" alt="Trail Runner" />
+              </div>
+              <div class="sample-thumb" id="thumbCycling" title="Alpine Road Cyclist">
+                <img src="/samples/sample_cycling.jpg" alt="Road Cyclist" />
               </div>
             </div>
-
-            <div id="intervalsActivityList" class="activity-list" style="display: none;"></div>
           </div>
 
-          <!-- Presets View -->
-          <div id="viewPresets" class="activity-list" style="display: none;">
-            <!-- Injected by JavaScript -->
+          <!-- Photo Adjustments -->
+          <div class="section-title" style="margin-top: 14px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            Photo Atmosphere & Filters
           </div>
 
-          <!-- Garmin FIT Dropzone -->
-          <div id="viewGarmin" class="dropzone" style="display: none;">
-            <div class="dropzone-icon">⌚</div>
-            <div class="dropzone-text">Drop Garmin .FIT File (or Click to Pick)</div>
-            <div class="dropzone-hint" style="line-height: 1.5; margin-top: 6px;">
-              <strong>How to get it:</strong> On Garmin Connect web, open your activity &rarr; click gear ⚙️ &rarr; <em>"Export Original"</em> (or copy from your watch's USB folder).
+          <div class="card-glass">
+            <div class="range-group">
+              <div class="range-header">
+                <span>Dark Vignette</span>
+                <span id="vignetteVal">35%</span>
+              </div>
+              <input type="range" id="vignetteSlider" min="0" max="1" step="0.05" value="0.35" />
             </div>
-            <input type="file" id="fitFileInput" accept=".fit" style="display: none;" />
-          </div>
 
-          <!-- GPX Dropzone -->
-          <div id="viewGpx" class="dropzone" style="display: none;">
-            <div class="dropzone-icon">📍</div>
-            <div class="dropzone-text">Drop .GPX Workout File (or Click to Pick)</div>
-            <div class="dropzone-hint" style="line-height: 1.5; margin-top: 6px;">
-              <strong>Free Strava Export:</strong> Open any activity on Strava &rarr; click <strong>···</strong> &rarr; <em>"Export GPX"</em>. 100% free with no subscription!
+            <div class="range-group">
+              <div class="range-header">
+                <span>Brightness</span>
+                <span id="brightnessVal">100%</span>
+              </div>
+              <input type="range" id="brightnessSlider" min="0.5" max="1.4" step="0.05" value="1.0" />
             </div>
-            <input type="file" id="gpxFileInput" accept=".gpx" style="display: none;" />
-          </div>
-        </div>
 
-        <!-- 2. Photo Backdrop Selection -->
-        <div class="section-title" style="margin-top: 10px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          Backdrop Photo
-        </div>
-
-        <div class="card-glass">
-          <div class="dropzone" id="photoDropzone">
-            <div class="dropzone-icon">📷</div>
-            <div class="dropzone-text">Upload Your Photo</div>
-            <div class="dropzone-hint">PNG, JPG, or Camera Shot (tap to pick)</div>
-            <input type="file" id="photoFileInput" accept="image/*" style="display: none;" />
-          </div>
-
-          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 14px; margin-bottom: 6px;">
-            Or Choose Pro Sample Photo
-          </div>
-          <div class="sample-thumbs">
-            <div class="sample-thumb active" id="thumbTrail" title="Scenic Ridge Trail Runner">
-              <img src="/samples/sample_trail.jpg" alt="Trail Runner" />
+            <div class="range-group">
+              <div class="range-header">
+                <span>Contrast</span>
+                <span id="contrastVal">105%</span>
+              </div>
+              <input type="range" id="contrastSlider" min="0.6" max="1.5" step="0.05" value="1.05" />
             </div>
-            <div class="sample-thumb" id="thumbCycling" title="Alpine Road Cyclist">
-              <img src="/samples/sample_cycling.jpg" alt="Road Cyclist" />
+
+            <div class="range-group">
+              <div class="range-header">
+                <span>Saturation</span>
+                <span id="saturationVal">105%</span>
+              </div>
+              <input type="range" id="saturationSlider" min="0" max="2.0" step="0.1" value="1.05" />
             </div>
           </div>
-        </div>
-
-        <!-- 3. Photo Adjustments -->
-        <div class="section-title" style="margin-top: 10px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          Photo Atmosphere & Filters
-        </div>
-
-        <div class="card-glass">
-          <div class="range-group">
-            <div class="range-header">
-              <span>Dark Vignette</span>
-              <span id="vignetteVal">35%</span>
-            </div>
-            <input type="range" id="vignetteSlider" min="0" max="1" step="0.05" value="0.35" />
-          </div>
-
-          <div class="range-group">
-            <div class="range-header">
-              <span>Brightness</span>
-              <span id="brightnessVal">100%</span>
-            </div>
-            <input type="range" id="brightnessSlider" min="0.5" max="1.4" step="0.05" value="1.0" />
-          </div>
-
-          <div class="range-group">
-            <div class="range-header">
-              <span>Contrast</span>
-              <span id="contrastVal">105%</span>
-            </div>
-            <input type="range" id="contrastSlider" min="0.6" max="1.5" step="0.05" value="1.05" />
-          </div>
-
-          <div class="range-group">
-            <div class="range-header">
-              <span>Saturation</span>
-              <span id="saturationVal">105%</span>
-            </div>
-            <input type="range" id="saturationSlider" min="0" max="2.0" step="0.1" value="1.05" />
-          </div>
-        </div>
+        </section>
       </aside>
 
       <!-- Center Viewport: Interactive Canvas Preview -->
       <section class="viewport-center">
         <!-- Aspect Ratio Floating Bar -->
         <div class="canvas-toolbar">
-          <span style="font-size: 11px; font-weight: 800; font-family: var(--font-mono); color: var(--text-muted); margin-right: 4px;">FORMAT:</span>
+          <span class="toolbar-label" style="font-size: 11px; font-weight: 800; font-family: var(--font-mono); color: var(--text-muted); margin-right: 4px;">FORMAT:</span>
           <div class="segmented-group">
-            <button class="segment-btn active" data-ratio="9:16">9:16 Story</button>
-            <button class="segment-btn" data-ratio="4:5">4:5 Post</button>
-            <button class="segment-btn" data-ratio="1:1">1:1 Square</button>
-            <button class="segment-btn" data-ratio="16:9">16:9 Banner</button>
+            <button class="segment-btn active" data-ratio="9:16">9:16<span class="ratio-label"> Story</span></button>
+            <button class="segment-btn" data-ratio="4:5">4:5<span class="ratio-label"> Post</span></button>
+            <button class="segment-btn" data-ratio="1:1">1:1<span class="ratio-label"> Square</span></button>
+            <button class="segment-btn" data-ratio="16:9">16:9<span class="ratio-label"> Banner</span></button>
           </div>
         </div>
 
@@ -227,7 +233,7 @@
           <canvas id="overlayCanvas"></canvas>
         </div>
 
-        <!-- Floating Action Bar -->
+        <!-- Action Bar -->
         <div class="floating-actions">
           <button id="downloadBtn" class="btn btn-primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -241,136 +247,263 @@
         </div>
       </section>
 
+      <!-- Mobile Category Navigation Tab Bar (Active on Mobile screens) -->
+      <nav class="mobile-tabs-bar" id="mobileTabsBar">
+        <button class="mobile-tab-btn active" data-tab="metrics">
+          <span class="tab-icon">📊</span>
+          <span class="tab-label">Metrics</span>
+        </button>
+        <button class="mobile-tab-btn" data-tab="style">
+          <span class="tab-icon">🎨</span>
+          <span class="tab-label">Style</span>
+        </button>
+        <button class="mobile-tab-btn" data-tab="workouts">
+          <span class="tab-icon">🏃</span>
+          <span class="tab-label">Workouts</span>
+        </button>
+        <button class="mobile-tab-btn" data-tab="photo">
+          <span class="tab-icon">📷</span>
+          <span class="tab-label">Photo</span>
+        </button>
+        <button class="mobile-tab-btn" data-tab="widgets">
+          <span class="tab-icon">🛠️</span>
+          <span class="tab-label">Widgets</span>
+        </button>
+        <button class="mobile-tab-btn" data-tab="text">
+          <span class="tab-icon">✏️</span>
+          <span class="tab-label">Edit</span>
+        </button>
+      </nav>
+
       <!-- Right Sidebar: Overlay Styling & Widgets -->
       <aside class="panel panel-right">
-        <!-- 1. Color Theme & Route Mode -->
-        <div class="section-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
-          Aesthetics & Theme
-        </div>
-
-        <div class="card-glass">
-          <div class="control-label" style="margin-bottom: 6px;">Accent Color</div>
-          <div class="palette-row">
-            <div class="color-dot active" style="background: #c8ff00;" data-color="#c8ff00" title="Hyper Lime"></div>
-            <div class="color-dot" style="background: #00f0ff;" data-color="#00f0ff" title="Electric Cyan"></div>
-            <div class="color-dot" style="background: #ff4a36;" data-color="#ff4a36" title="Solar Coral"></div>
-            <div class="color-dot" style="background: #00ff88;" data-color="#00ff88" title="Emerald Speed"></div>
-            <div class="color-dot" style="background: #ffffff;" data-color="#ffffff" title="Pure White"></div>
+        <!-- Section: Individual Workout Metrics (Hero & Secondary Toggles) -->
+        <section class="studio-section active-mobile-section" data-section="metrics">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            Workout Metrics Toggles
           </div>
 
-          <div class="control-label" style="margin-top: 14px; margin-bottom: 6px;">GPS Route Color Mode</div>
-          <div class="segmented-group" style="width: 100%;">
-            <button class="segment-btn active" data-routemode="elevation" style="flex: 1;">Elevation</button>
-            <button class="segment-btn" data-routemode="solid" style="flex: 1;">Solid</button>
-          </div>
-
-          <div class="range-group" style="margin-top: 14px;">
-            <div class="range-header">
-              <span>Card Glass Opacity</span>
-              <span id="opacityVal">85%</span>
+          <div class="card-glass">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">
+              Hero Stat Columns
             </div>
-            <input type="range" id="opacitySlider" min="0.2" max="1.0" step="0.05" value="0.85" />
-          </div>
-        </div>
 
-        <!-- 2. Overlay Layer Toggles -->
-        <div class="section-title" style="margin-top: 10px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-          Overlay Widgets
-        </div>
-
-        <div class="card-glass">
-          <div class="control-row">
-            <span class="control-label">GPS Route Polyline</span>
-            <label class="switch">
-              <input type="checkbox" id="togglePolyline" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-
-          <div class="control-row">
-            <span class="control-label">Route Ambient Glow</span>
-            <label class="switch">
-              <input type="checkbox" id="toggleGlow" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-
-          <div class="range-group" id="glowSliderGroup" style="margin-top: 6px; margin-bottom: 8px;">
-            <div class="range-header">
-              <span style="font-size: 12px; color: rgba(255, 255, 255, 0.65);">Glow Intensity</span>
-              <span id="glowVal" style="font-size: 12px; color: var(--accent); font-weight: 700;">70%</span>
+            <div class="control-row">
+              <span class="control-label">📏 Distance</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricDist" checked />
+                <span class="slider-round"></span>
+              </label>
             </div>
-            <input type="range" id="glowSlider" min="0.2" max="1.0" step="0.05" value="0.70" />
-          </div>
 
-          <div class="control-row">
-            <span class="control-label">Start / Finish Pins</span>
-            <label class="switch">
-              <input type="checkbox" id="togglePins" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-
-          <div class="control-row">
-            <span class="control-label">Title & Date Badge</span>
-            <label class="switch">
-              <input type="checkbox" id="toggleHeader" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-
-          <div class="control-row">
-            <span class="control-label">Hero Metrics Card</span>
-            <label class="switch">
-              <input type="checkbox" id="toggleHeroStats" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-
-          <div class="control-row">
-            <span class="control-label">Heart Rate 5-Zone Bar</span>
-            <label class="switch">
-              <input type="checkbox" id="toggleHrZones" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-
-
-          <div class="control-row">
-            <span class="control-label">RunCraft Branding</span>
-            <label class="switch">
-              <input type="checkbox" id="toggleWatermark" checked />
-              <span class="slider-round"></span>
-            </label>
-          </div>
-        </div>
-
-        <!-- 3. Quick Stats Editor -->
-        <div class="section-title" style="margin-top: 10px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          Edit Stats & Text
-        </div>
-
-        <div class="card-glass">
-          <label class="control-label" style="display: block; margin-bottom: 4px;">Activity Title</label>
-          <input type="text" id="editTitleInput" class="input-field" value="Marin Headlands Skyline Trail" />
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div>
-              <label class="control-label" style="display: block; margin-bottom: 4px;">Distance (km)</label>
-              <input type="number" id="editDistInput" class="input-field" step="0.1" value="21.1" />
+            <div class="control-row">
+              <span class="control-label">⏱️ Moving Time</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricTime" checked />
+                <span class="slider-round"></span>
+              </label>
             </div>
-            <div>
-              <label class="control-label" style="display: block; margin-bottom: 4px;">Elev Gain (m)</label>
-              <input type="number" id="editEleInput" class="input-field" step="10" value="640" />
+
+            <div class="control-row">
+              <span class="control-label">⚡ Avg Pace</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricPace" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">⛰️ Elevation Gain</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricEle" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 14px; margin-bottom: 12px; letter-spacing: 0.5px;">
+              Secondary Telemetry
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">❤️ Heart Rate (bpm)</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricHr" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">👟 Cadence (spm)</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricCadence" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">🔥 Calories (kcal)</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricCalories" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">⚡ Power (Watts)</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleMetricPower" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 14px; margin-bottom: 12px; letter-spacing: 0.5px;">
+              Card Visibility
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Show Metrics Card</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleHeroStats" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Show Secondary Bar</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleSecondaryStats" checked />
+                <span class="slider-round"></span>
+              </label>
             </div>
           </div>
+        </section>
 
-          <label class="control-label" style="display: block; margin-bottom: 4px;">City / Gear / Shoe</label>
-          <input type="text" id="editLocationInput" class="input-field" value="Marin County, CA • Salomon S/Lab" />
-        </div>
+        <!-- Section: Aesthetics & Theme -->
+        <section class="studio-section" data-section="style">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+            Aesthetics & Theme
+          </div>
+
+          <div class="card-glass">
+            <div class="control-label" style="margin-bottom: 6px;">Accent Color</div>
+            <div class="palette-row">
+              <div class="color-dot active" style="background: #c8ff00;" data-color="#c8ff00" title="Hyper Lime"></div>
+              <div class="color-dot" style="background: #00f0ff;" data-color="#00f0ff" title="Electric Cyan"></div>
+              <div class="color-dot" style="background: #ff4a36;" data-color="#ff4a36" title="Solar Coral"></div>
+              <div class="color-dot" style="background: #00ff88;" data-color="#00ff88" title="Emerald Speed"></div>
+              <div class="color-dot" style="background: #ffffff;" data-color="#ffffff" title="Pure White"></div>
+            </div>
+
+            <div class="control-label" style="margin-top: 14px; margin-bottom: 6px;">GPS Route Color Mode</div>
+            <div class="segmented-group" style="width: 100%;">
+              <button class="segment-btn active" data-routemode="elevation" style="flex: 1;">Elevation</button>
+              <button class="segment-btn" data-routemode="solid" style="flex: 1;">Solid</button>
+            </div>
+
+            <div class="range-group" style="margin-top: 14px;">
+              <div class="range-header">
+                <span>Card Glass Opacity</span>
+                <span id="opacityVal">85%</span>
+              </div>
+              <input type="range" id="opacitySlider" min="0.2" max="1.0" step="0.05" value="0.85" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Section: Overlay Layer Toggles -->
+        <section class="studio-section" data-section="widgets">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            Overlay Widgets
+          </div>
+
+          <div class="card-glass">
+            <div class="control-row">
+              <span class="control-label">GPS Route Polyline</span>
+              <label class="switch">
+                <input type="checkbox" id="togglePolyline" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Route Ambient Glow</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleGlow" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="range-group" id="glowSliderGroup" style="margin-top: 6px; margin-bottom: 8px;">
+              <div class="range-header">
+                <span style="font-size: 12px; color: rgba(255, 255, 255, 0.65);">Glow Intensity</span>
+                <span id="glowVal" style="font-size: 12px; color: var(--accent); font-weight: 700;">70%</span>
+              </div>
+              <input type="range" id="glowSlider" min="0.2" max="1.0" step="0.05" value="0.70" />
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Start / Finish Pins</span>
+              <label class="switch">
+                <input type="checkbox" id="togglePins" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Title & Date Badge</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleHeader" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Heart Rate 5-Zone Bar</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleHrZones" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">RunCraft Branding</span>
+              <label class="switch">
+                <input type="checkbox" id="toggleWatermark" checked />
+                <span class="slider-round"></span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section: Quick Stats Editor -->
+        <section class="studio-section" data-section="text">
+          <div class="section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit Stats & Text
+          </div>
+
+          <div class="card-glass">
+            <label class="control-label" style="display: block; margin-bottom: 4px;">Activity Title</label>
+            <input type="text" id="editTitleInput" class="input-field" value="Marin Headlands Skyline Trail" />
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label class="control-label" style="display: block; margin-bottom: 4px;">Distance (km)</label>
+                <input type="number" id="editDistInput" class="input-field" step="0.1" value="21.1" />
+              </div>
+              <div>
+                <label class="control-label" style="display: block; margin-bottom: 4px;">Elev Gain (m)</label>
+                <input type="number" id="editEleInput" class="input-field" step="10" value="640" />
+              </div>
+            </div>
+
+            <label class="control-label" style="display: block; margin-bottom: 4px;">City / Gear / Shoe</label>
+            <input type="text" id="editLocationInput" class="input-field" value="Marin County, CA • Salomon S/Lab" />
+          </div>
+        </section>
       </aside>
     </main>
 
@@ -466,6 +599,34 @@
             Connect & Load Garmin Workouts ➔
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- PWA Install Guidance Modal -->
+    <div class="modal-overlay" id="pwaInstallModal">
+      <div class="modal-dialog" style="max-width: 440px;">
+        <div class="modal-header">
+          <div class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+            📲 Install RunCraft
+          </div>
+          <button class="close-btn" id="closePwaInstallModalBtn">&times;</button>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 18px;">
+          <img src="/icon-192.png" alt="RunCraft Logo" style="width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 8px 24px rgba(200, 255, 0, 0.25);" />
+          <div style="font-size: 18px; font-weight: 800; margin-top: 10px; color: #ffffff;">RunCraft Studio PWA</div>
+          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5;">
+            Install as a mobile app for fast offline photo overlay crafting and instant sharing.
+          </p>
+        </div>
+
+        <div id="pwaInstructionsContainer" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
+          <!-- Dynamically filled in JS for iOS / Android / Desktop -->
+        </div>
+
+        <button id="pwaModalInstallActionBtn" class="btn btn-primary" style="width: 100%; font-weight: 800; display: none;">
+          ⚡ Install App Directly
+        </button>
       </div>
     </div>
 

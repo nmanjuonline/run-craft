@@ -415,21 +415,9 @@ export class CanvasEngine {
     const cy = (h * pos.yPercent) / 100;
 
     const cardW = Math.min(w * 0.92, 980) * pos.scale;
-    const cardH = 210 * pos.scale;
     const cardX = cx - cardW / 2;
-    const cardY = cy - cardH / 2;
 
     ctx.save();
-
-    // Glassmorphism Card Backdrop
-    ctx.fillStyle = `rgba(15, 23, 42, ${config.cardOpacity})`;
-    this.roundRect(ctx, cardX, cardY, cardW, cardH, 28 * pos.scale);
-    ctx.fill();
-
-    // Card Glass Border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-    ctx.lineWidth = 2 * pos.scale;
-    ctx.stroke();
 
     // Ensure accurate elevation gain: if 0 or unpopulated, compute from GPS altitude trackpoints
     let eleGain = activity.elevationGainMeters;
@@ -441,64 +429,43 @@ export class CanvasEngine {
       }
     }
 
+    // Check individual metric toggles (defaulting to true if undefined)
+    const metricsConfig = config.metrics || {
+      distance: true,
+      time: true,
+      pace: true,
+      elevation: true,
+      heartRate: true,
+      cadence: true,
+      calories: true,
+      power: true,
+    };
+
     // Format metrics
     const distanceKm = (activity.distanceMeters / 1000).toFixed(2);
     const paceStr = formatPace(activity.avgPaceSecPerKm);
     const timeStr = formatDuration(activity.movingTimeSec);
     const eleStr = eleGain > 0 ? `+${eleGain}` : `${eleGain || 0}`;
 
-    const cols = [
-      { label: 'DISTANCE', val: distanceKm, unit: 'km', color: config.accentColor },
-      { label: 'AVG PACE', val: paceStr, unit: '/km', color: '#ffffff' },
-      { label: 'TIME', val: timeStr, unit: '', color: '#ffffff' },
-      { label: 'ELEV GAIN', val: eleStr, unit: 'm', color: '#00f0ff' },
+    const allHeroCols = [
+      { key: 'distance', label: 'DISTANCE', val: distanceKm, unit: 'km', color: config.accentColor },
+      { key: 'pace', label: 'AVG PACE', val: paceStr, unit: '/km', color: '#ffffff' },
+      { key: 'time', label: 'TIME', val: timeStr, unit: '', color: '#ffffff' },
+      { key: 'elevation', label: 'ELEV GAIN', val: eleStr, unit: 'm', color: '#00f0ff' },
     ];
 
-    const colW = cardW / cols.length;
+    const cols = allHeroCols.filter((col) => metricsConfig[col.key as keyof typeof metricsConfig]);
 
-    cols.forEach((col, i) => {
-      const colX = cardX + colW * i + colW / 2;
-      const topY = cardY + 52 * pos.scale;
-
-      // Metric Label
-      ctx.textAlign = 'center';
-      ctx.font = `700 ${18 * pos.scale}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.fillText(col.label, colX, topY);
-
-      // Hero Value
-      ctx.font = `800 ${52 * pos.scale}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = col.color;
-      ctx.fillText(col.val, colX, topY + 68 * pos.scale);
-
-      // Subscript Unit
-      if (col.unit) {
-        ctx.font = `600 ${20 * pos.scale}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillText(col.unit, colX, topY + 104 * pos.scale);
-      }
-
-      // Vertical Separator
-      if (i < cols.length - 1) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cardX + colW * (i + 1), cardY + 30 * pos.scale);
-        ctx.lineTo(cardX + colW * (i + 1), cardY + cardH - 30 * pos.scale);
-        ctx.stroke();
-      }
-    });
-
-    // Secondary Stats Pills (Heart rate, cadence, calories, altitude range) inside or below
+    // Secondary Stats Pills (Heart rate, cadence, calories, power, altitude range)
+    const secMetrics: string[] = [];
     if (config.showSecondaryStats) {
-      const secMetrics: string[] = [];
-      if (activity.avgHeartRate) secMetrics.push(`❤️ ${activity.avgHeartRate} bpm`);
-      if (activity.avgCadence) secMetrics.push(`⚡ ${activity.avgCadence} spm`);
-      if (activity.calories) secMetrics.push(`🔥 ${activity.calories} kcal`);
-      if (activity.avgPowerWatts) secMetrics.push(`⚡ ${activity.avgPowerWatts} W`);
+      if (metricsConfig.heartRate && activity.avgHeartRate) secMetrics.push(`❤️ ${activity.avgHeartRate} bpm`);
+      if (metricsConfig.cadence && activity.avgCadence) secMetrics.push(`⚡ ${activity.avgCadence} spm`);
+      if (metricsConfig.calories && activity.calories) secMetrics.push(`🔥 ${activity.calories} kcal`);
+      if (metricsConfig.power && activity.avgPowerWatts) secMetrics.push(`⚡ ${activity.avgPowerWatts} W`);
 
-      // Show true altitude above sea level range if GPS trackpoints have elevation
-      if (activity.points && activity.points.length > 0) {
+      // Show true altitude above sea level range if elevation is enabled & GPS trackpoints have elevation
+      if (metricsConfig.elevation && activity.points && activity.points.length > 0) {
         let minEle = Infinity;
         let maxEle = -Infinity;
         for (const p of activity.points) {
@@ -511,12 +478,75 @@ export class CanvasEngine {
           secMetrics.push(`⛰️ ${Math.round(minEle)}m – ${Math.round(maxEle)}m`);
         }
       }
+    }
 
-      if (secMetrics.length > 0) {
-        ctx.font = `600 ${18 * pos.scale}px "Plus Jakarta Sans", sans-serif`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-        ctx.fillText(secMetrics.join('   |   '), cx, cardY + cardH - 22 * pos.scale);
-      }
+    // If all metrics are toggled off, skip drawing the card
+    if (cols.length === 0 && secMetrics.length === 0) {
+      ctx.restore();
+      return;
+    }
+
+    // Adaptive card height depending on whether hero cols or only secondary pills are shown
+    const hasHero = cols.length > 0;
+    const hasSec = secMetrics.length > 0;
+    const cardH = (!hasHero && hasSec ? 90 : !hasSec && hasHero ? 170 : 210) * pos.scale;
+    const cardY = cy - cardH / 2;
+
+    // Glassmorphism Card Backdrop
+    ctx.fillStyle = `rgba(15, 23, 42, ${config.cardOpacity})`;
+    this.roundRect(ctx, cardX, cardY, cardW, cardH, 28 * pos.scale);
+    ctx.fill();
+
+    // Card Glass Border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 2 * pos.scale;
+    ctx.stroke();
+
+    if (hasHero) {
+      const colW = cardW / cols.length;
+      const heroFontSize = (cols.length <= 2 ? 60 : cols.length === 3 ? 54 : 48) * pos.scale;
+
+      cols.forEach((col, i) => {
+        const colX = cardX + colW * i + colW / 2;
+        const topY = cardY + (hasSec ? 50 : 58) * pos.scale;
+
+        // Metric Label
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${18 * pos.scale}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillText(col.label, colX, topY);
+
+        // Hero Value
+        ctx.font = `800 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = col.color;
+        ctx.fillText(col.val, colX, topY + (hasSec ? 66 : 72) * pos.scale);
+
+        // Subscript Unit
+        if (col.unit) {
+          ctx.font = `600 ${20 * pos.scale}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+          ctx.fillText(col.unit, colX, topY + (hasSec ? 102 : 108) * pos.scale);
+        }
+
+        // Vertical Separator
+        if (i < cols.length - 1) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(cardX + colW * (i + 1), cardY + 28 * pos.scale);
+          ctx.lineTo(cardX + colW * (i + 1), cardY + cardH - (hasSec ? 34 : 28) * pos.scale);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // Secondary metrics line
+    if (hasSec) {
+      const secY = hasHero ? cardY + cardH - 22 * pos.scale : cy + 6 * pos.scale;
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${18 * pos.scale}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.fillText(secMetrics.join('   |   '), cx, secY);
     }
 
     ctx.restore();

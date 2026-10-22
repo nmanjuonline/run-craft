@@ -62,6 +62,16 @@ export const CONFIG = {
         blur: 0,
         exposure: 0,
       },
+      metrics: {
+        distance: true,
+        time: true,
+        pace: true,
+        elevation: true,
+        heartRate: true,
+        cadence: true,
+        calories: true,
+        power: true,
+      },
       positions: {
         header: { xPercent: 50, yPercent: 7.5, scale: 1.0 },
         routeMap: { xPercent: 50, yPercent: 38, scale: 1.0 },

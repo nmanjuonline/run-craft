@@ -668,6 +668,7 @@ function setupMobileTabs() {
   const drawerActiveIcon = document.getElementById('drawerActiveIcon');
   const drawerActiveTitle = document.getElementById('drawerActiveTitle');
   const drawerQuickDownloadBtn = document.getElementById('drawerQuickDownloadBtn');
+  const floatingExpandBtn = document.getElementById('floatingExpandBtn');
   const studioContainer = document.querySelector('.studio-container');
 
   const TAB_METADATA: Record<string, { icon: string; title: string }> = {
@@ -685,7 +686,7 @@ function setupMobileTabs() {
       drawer.classList.add('collapsed');
       drawer.classList.remove('expanded');
       studioContainer?.classList.add('drawer-is-collapsed');
-      if (drawerToggleText) drawerToggleText.textContent = 'Controls';
+      if (drawerToggleText) drawerToggleText.textContent = 'Show';
     } else {
       drawer.classList.remove('collapsed');
       studioContainer?.classList.remove('drawer-is-collapsed');
@@ -708,19 +709,69 @@ function setupMobileTabs() {
     toggleDrawer();
   });
 
+  // Tap anywhere on collapsed drawer bar to expand
+  drawer?.addEventListener('click', (e) => {
+    if (drawer.classList.contains('collapsed')) {
+      const target = e.target as HTMLElement;
+      if (target.closest('#drawerQuickDownloadBtn')) return;
+      setDrawerCollapsed(false);
+    }
+  });
+
+  // Dedicated floating Show Controls pill
+  floatingExpandBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setDrawerCollapsed(false);
+  });
+
   drawerQuickDownloadBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
     downloadBtn?.click();
   });
 
-  // Tapping canvas on mobile collapses drawer for unobstructed photo inspection
+  // Tapping canvas on mobile toggles drawer:
+  // If open -> collapse to view photo cleanly
+  // If collapsed -> expand back to show controls
   if (canvas) {
     canvas.addEventListener('click', () => {
-      if (window.innerWidth <= 991 && drawer && !drawer.classList.contains('collapsed')) {
-        setDrawerCollapsed(true);
+      if (window.innerWidth <= 991 && drawer) {
+        const isCollapsed = drawer.classList.contains('collapsed');
+        setDrawerCollapsed(!isCollapsed);
       }
     });
   }
+
+  // Native touch swipe gestures on mobile drawer
+  let touchStartY = 0;
+  let touchStartX = 0;
+
+  drawer?.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartY = e.touches[0].clientY;
+      touchStartX = e.touches[0].clientX;
+    }
+  }, { passive: true });
+
+  drawer?.addEventListener('touchend', (e) => {
+    if (e.changedTouches.length === 1) {
+      const deltaY = e.changedTouches[0].clientY - touchStartY;
+      const deltaX = Math.abs(e.changedTouches[0].clientX - touchStartX);
+
+      // Predominantly vertical swipe gesture
+      if (Math.abs(deltaY) > 25 && Math.abs(deltaY) > deltaX) {
+        if (deltaY < -25 && drawer.classList.contains('collapsed')) {
+          // Swiped UP when collapsed -> Expand drawer
+          setDrawerCollapsed(false);
+        } else if (deltaY > 40 && !drawer.classList.contains('collapsed')) {
+          // Swiped DOWN on header -> Collapse drawer
+          const target = e.target as HTMLElement;
+          if (target.closest('.drawer-header')) {
+            setDrawerCollapsed(true);
+          }
+        }
+      }
+    }
+  }, { passive: true });
 
   // Sync initial tab state on mobile (Workouts is first tab)
   const activeTabBtn = document.querySelector<HTMLButtonElement>('.mobile-tab-btn.active');

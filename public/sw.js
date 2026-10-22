@@ -1,5 +1,5 @@
 // Service Worker for RunCraft
-const CACHE_NAME = 'runcraft-v17';
+const CACHE_NAME = 'runcraft-v18';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -9,6 +9,10 @@ const ASSETS_TO_CACHE = [
   '/icon-512.png',
   '/icon-maskable-192.png',
   '/icon-maskable-512.png',
+  '/icon-192-stage.png',
+  '/icon-512-stage.png',
+  '/icon-maskable-192-stage.png',
+  '/icon-maskable-512-stage.png',
   '/icon.svg'
 ];
 

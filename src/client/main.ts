@@ -714,12 +714,10 @@ function setupMobileTabs() {
       drawer.classList.add('collapsed');
       drawer.classList.remove('expanded');
       studioContainer?.classList.add('drawer-is-collapsed');
-      if (drawerToggleIcon) drawerToggleIcon.textContent = '⌃';
       if (drawerToggleText) drawerToggleText.textContent = 'Controls';
     } else {
       drawer.classList.remove('collapsed');
       studioContainer?.classList.remove('drawer-is-collapsed');
-      if (drawerToggleIcon) drawerToggleIcon.textContent = '⌄';
       if (drawerToggleText) drawerToggleText.textContent = 'Hide';
     }
   }

@@ -168,8 +168,28 @@ function setupPwa() {
 
   if (installPwaBtn) {
     installPwaBtn.addEventListener('click', async () => {
-      const promptToUse = deferredPrompt || (window as any).__pwaPrompt;
+      let promptToUse = deferredPrompt || (window as any).__pwaPrompt;
 
+      // 1. If prompt hasn't arrived yet on initial click, wait up to 2.5 seconds with feedback
+      if (!promptToUse) {
+        const origText = installPwaBtn.innerHTML;
+        installPwaBtn.disabled = true;
+        installPwaBtn.innerHTML = '⏳ <span class="btn-text-full">Installing...</span><span class="btn-text-short">...</span>';
+
+        promptToUse = await new Promise((resolve) => {
+          if ((window as any).__pwaPrompt) return resolve((window as any).__pwaPrompt);
+          const timer = setTimeout(() => resolve(null), 2500);
+          window.addEventListener('pwa-prompt-ready', () => {
+            clearTimeout(timer);
+            resolve((window as any).__pwaPrompt);
+          }, { once: true });
+        });
+
+        installPwaBtn.disabled = false;
+        installPwaBtn.innerHTML = origText;
+      }
+
+      // 2. Direct installation via native browser dialog
       if (promptToUse) {
         try {
           promptToUse.prompt();
@@ -180,22 +200,50 @@ function setupPwa() {
           }
           deferredPrompt = null;
           (window as any).__pwaPrompt = null;
+          return;
         } catch (err) {
           console.warn('Direct installation prompt error:', err);
         }
+      }
+
+      // 3. Check if already installed on device
+      if ('getInstalledRelatedApps' in navigator) {
+        try {
+          const apps = await (navigator as any).getInstalledRelatedApps();
+          if (apps && apps.length > 0) {
+            showToast('✨ RunCraft is already installed! Open it from your apps or home screen.');
+            installPwaBtn.style.display = 'none';
+            return;
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      // 4. Device & Browser specific fallback
+      const ua = navigator.userAgent;
+      const isSamsung = /SamsungBrowser/i.test(ua);
+      const isAndroidChrome = /Chrome/i.test(ua) && /Android/i.test(ua);
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+      if (isSamsung) {
+        showToast('📲 In Samsung Internet: Tap ☰ (bottom-right) ➔ tap "Add page to" ➔ "App".');
         return;
       }
 
-      // If on iOS Safari (where Apple does not support programmatic prompt APIs)
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      if (isAndroidChrome) {
+        showToast('📲 In Chrome: Tap ⋮ (top-right) ➔ tap "Install app".');
+        return;
+      }
+
       if (isIOS || isSafari) {
         openPwaGuidanceModal();
         return;
       }
 
-      // If Chromium / Edge desktop where prompt hasn't fired or is suppressed
-      showToast('⚡ Direct installation: Click the (⊕) install button on the right of your address bar.');
+      // Desktop Chrome / Edge
+      showToast('💻 Desktop: Click the install icon ⊕ in your browser address bar.');
     });
   }
 

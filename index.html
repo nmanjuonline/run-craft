@@ -7,7 +7,7 @@
     <meta name="description" content="Generate high-aesthetic social media photo overlays from Garmin and Strava workouts with route maps, HR zones, and sleek glassmorphism." />
     
     <!-- PWA & Mobile Web App Meta -->
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0b0f17" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -33,7 +33,9 @@
         window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
       });
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(e) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
+          reg.update();
+        }).catch(function(e) {
           console.warn('[RunCraft SW] register note:', e);
         });
       }

@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="/src/client/style.css" />
 
-    <!-- Immediate PWA Prompt Capture & Early SW Registration -->
+    <!-- Immediate PWA Prompt Capture & Early SW Registration (Exact Race-Craft Pattern) -->
     <script>
       window.__deferredPrompt = null;
       window.addEventListener('beforeinstallprompt', function(e) {
@@ -40,6 +40,14 @@
             reg.update();
           })
           .catch(function(err) {});
+
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
       }
     </script>
   </head>
@@ -57,19 +65,13 @@
         <button id="pwaBannerDismissBtn" class="pwa-banner-dismiss" aria-label="Dismiss">✕</button>
       </div>
     </div>
-    <div id="pwaGuideTip" class="pwa-guide-tip" style="display: none;">
-      <span id="pwaGuideTipText"></span>
-      <button id="pwaGuideTipClose" class="pwa-guide-tip-close" aria-label="Close tip">✕</button>
-    </div>
     <script>
       (function() {
         var banner = document.getElementById('pwaInstallBanner');
         var installBtn = document.getElementById('pwaBannerInstallBtn');
         var dismissBtn = document.getElementById('pwaBannerDismissBtn');
         var bannerTitle = document.getElementById('pwaBannerTitle');
-        var guideTip = document.getElementById('pwaGuideTip');
-        var guideTipText = document.getElementById('pwaGuideTipText');
-        var guideTipClose = document.getElementById('pwaGuideTipClose');
+        var isInstalling = false;
 
         // 1. Check if already running in standalone PWA mode
         var isStandalone =
@@ -110,18 +112,11 @@
 
         function hideBanner() {
           if (banner) banner.style.display = 'none';
-          if (guideTip) guideTip.style.display = 'none';
           sessionStorage.setItem('rc_pwa_dismissed', 'true');
         }
 
         if (dismissBtn) {
           dismissBtn.addEventListener('click', hideBanner);
-        }
-
-        if (guideTipClose) {
-          guideTipClose.addEventListener('click', function() {
-            if (guideTip) guideTip.style.display = 'none';
-          });
         }
 
         // 4. Capture prompt from early head script or events
@@ -161,13 +156,64 @@
           }
         }, 400);
 
-        // 6. Direct installation click handler (Synchronous invocation)
+        // 6. Direct installation click handler (Exact race-craft handleInstallClick pattern)
         if (installBtn) {
-          installBtn.addEventListener('click', function() {
+          installBtn.addEventListener('click', async function() {
             var prompt = window.__deferredPrompt;
 
+            if (!prompt) {
+              isInstalling = true;
+              installBtn.textContent = 'Starting...';
+              installBtn.style.opacity = '0.8';
+
+              prompt = await new Promise(function(resolve) {
+                var done = false;
+                var check = function() {
+                  var p = window.__deferredPrompt;
+                  if (p) {
+                    done = true;
+                    resolve(p);
+                    return true;
+                  }
+                  return false;
+                };
+
+                if (check()) return;
+
+                var onReady = function() {
+                  if (!done) {
+                    done = true;
+                    resolve(window.__deferredPrompt || null);
+                  }
+                };
+
+                window.addEventListener('pwa-prompt-ready', onReady, { once: true });
+                window.addEventListener('beforeinstallprompt', function(e) {
+                  if (!done) {
+                    done = true;
+                    resolve(e);
+                  }
+                }, { once: true });
+
+                var interval = setInterval(function() {
+                  if (check()) clearInterval(interval);
+                }, 100);
+
+                setTimeout(function() {
+                  clearInterval(interval);
+                  if (!done) {
+                    done = true;
+                    resolve(window.__deferredPrompt || null);
+                  }
+                }, 3000);
+              });
+
+              isInstalling = false;
+              installBtn.textContent = isStage ? 'Install [Stage]' : 'Install';
+              installBtn.style.opacity = '1';
+            }
+
             if (prompt) {
-              // Direct synchronous call to guarantee active user gesture token!
               try {
                 prompt.prompt();
                 if (prompt.userChoice) {
@@ -182,22 +228,6 @@
               } finally {
                 window.__deferredPrompt = null;
               }
-              return;
-            }
-
-            // Fallback for Samsung Internet, iOS Safari, or browsers handling install natively
-            var isSamsung = /SamsungBrowser/i.test(navigator.userAgent);
-            var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-            if (guideTip && guideTipText) {
-              if (isSamsung) {
-                guideTipText.innerHTML = '<strong>Samsung Internet:</strong> Tap the <strong>⤓ (Download)</strong> icon in your address bar, or tap <strong>Menu (☰) ➔ "Add page to" ➔ "App screen"</strong> to install.';
-              } else if (isIOS) {
-                guideTipText.innerHTML = '<strong>iOS Safari:</strong> Tap the <strong>Share (⎋)</strong> icon at the bottom, then select <strong>"Add to Home Screen"</strong>.';
-              } else {
-                guideTipText.innerHTML = '<strong>Install RunCraft:</strong> Click the <strong>Install (⊕)</strong> icon on the right side of your address bar or browser menu.';
-              }
-              guideTip.style.display = 'flex';
             }
           });
         }

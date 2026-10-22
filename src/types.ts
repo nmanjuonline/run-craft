@@ -28,9 +28,12 @@ export interface GeoPoint {
 export interface SplitRecord {
   splitIndex: number;
   distanceMeters: number;
-  elapsedSec: number;
+  elapsedSec?: number;
+  elapsedTimeSec?: number;
+  movingTimeSec?: number;
   paceSecPerKm: number;
-  elevationDiffM: number;
+  elevationDiffM?: number;
+  elevationDiffMeters?: number;
   avgHeartRate?: number;
 }
 

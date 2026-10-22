@@ -4,3 +4,4 @@ dist
 *.vsidx
 .DS_Store
 *.local
+.wrangler

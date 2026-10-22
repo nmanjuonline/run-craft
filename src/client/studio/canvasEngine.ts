@@ -3,7 +3,7 @@
  * High-performance 2D Canvas studio for workout photo overlays
  */
 
-import type { WorkoutActivity, OverlayConfig, AspectRatio, GeoPoint } from '../../types.js';
+import type { WorkoutActivity, OverlayConfig, AspectRatio, GeoPoint, SplitRecord } from '../../types.js';
 import { computeRobustElevationGain } from '../../sources/types.js';
 
 export interface CanvasDimensions {

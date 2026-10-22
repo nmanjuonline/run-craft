@@ -4,7 +4,7 @@
  */
 
 import { Router } from './router.js';
-import type { WorkoutActivity, GeoPoint, ActivityType, HeartRateZoneRecord } from '../types.js';
+import type { WorkoutActivity, GeoPoint, ActivityType, HeartRateZoneRecord, SplitRecord } from '../types.js';
 import { computeHeartRateZones, computeRobustElevationGain } from '../sources/types.js';
 
 export const intervalsRouter = new Router();

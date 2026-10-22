@@ -100,7 +100,7 @@ const editLocationInput = document.getElementById('editLocationInput') as HTMLIn
 // Action Buttons
 const downloadBtn = document.getElementById('downloadBtn') as HTMLButtonElement;
 const shareBtn = document.getElementById('shareBtn') as HTMLButtonElement;
-const installPwaBtn = document.getElementById('installPwaBtn') as HTMLButtonElement;
+const installPwaBtn = document.getElementById('installPwaBtn') as HTMLButtonElement | null;
 
 // PWA Modal Elements
 const pwaInstallModal = document.getElementById('pwaInstallModal') as HTMLElement | null;
@@ -134,7 +134,7 @@ function setupPwa() {
     document.referrer.includes('android-app://');
 
   const pwaBanner = document.getElementById('pwaInstallBanner');
-  const bannerInstallBtn = document.getElementById('pwaBannerInstallBtn');
+  const bannerInstallBtn = document.getElementById('pwaBannerInstallBtn') as HTMLButtonElement | null;
   const bannerDismissBtn = document.getElementById('pwaBannerDismissBtn');
 
   if (isStandalone) {
@@ -186,7 +186,7 @@ function setupPwa() {
   window.addEventListener('beforeinstallprompt', handlePrompt);
   window.addEventListener('pwa-prompt-ready', handlePromptReady);
 
-  // Ensure banner displays on non-standalone browsers after brief delay (race-craft pattern)
+  // Ensure banner displays on non-standalone browsers after brief delay
   setTimeout(() => {
     if (sessionStorage.getItem('runcraft_pwa_dismissed') !== 'true') {
       showBanner();
@@ -199,72 +199,106 @@ function setupPwa() {
     (window as any).__pwaPrompt = null;
     if (installPwaBtn) installPwaBtn.style.display = 'none';
     hideBanner();
+    showToast('🎉 RunCraft installed successfully!');
   });
 
-  // Direct installation click handler (race-craft pattern)
+  // Direct installation click handler
+  let isInstalling = false;
   const handleInstallClick = async () => {
-    let prompt = localDeferredPrompt || (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+    if (isInstalling) return;
+    isInstalling = true;
+    if (bannerInstallBtn) bannerInstallBtn.textContent = 'Installing...';
 
-    if (!prompt) {
-      prompt = await new Promise<any>((resolve) => {
-        let done = false;
-        const check = () => {
-          const p = (window as any).__deferredPrompt || (window as any).__pwaPrompt;
-          if (p) {
-            done = true;
-            resolve(p);
-            return true;
-          }
-          return false;
-        };
+    try {
+      let prompt = localDeferredPrompt || (window as any).__deferredPrompt || (window as any).__pwaPrompt;
 
-        if (check()) return;
+      if (!prompt) {
+        prompt = await new Promise<any>((resolve) => {
+          let done = false;
+          const check = () => {
+            const p = (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+            if (p) {
+              done = true;
+              resolve(p);
+              return true;
+            }
+            return false;
+          };
 
-        const onReady = () => {
-          if (!done) {
-            done = true;
-            resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
-          }
-        };
+          if (check()) return;
 
-        window.addEventListener('pwa-prompt-ready', onReady, { once: true });
-        window.addEventListener('beforeinstallprompt', (e) => {
-          if (!done) {
-            done = true;
-            resolve(e);
-          }
-        }, { once: true });
+          const onReady = () => {
+            if (!done) {
+              done = true;
+              resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
+            }
+          };
 
-        const interval = setInterval(() => {
-          if (check()) clearInterval(interval);
-        }, 100);
+          window.addEventListener('pwa-prompt-ready', onReady, { once: true });
+          window.addEventListener('beforeinstallprompt', (e) => {
+            if (!done) {
+              done = true;
+              resolve(e);
+            }
+          }, { once: true });
 
-        setTimeout(() => {
-          clearInterval(interval);
-          if (!done) {
-            done = true;
-            resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
-          }
-        }, 3000);
-      });
-    }
+          const interval = setInterval(() => {
+            if (check()) clearInterval(interval);
+          }, 100);
 
-    if (prompt) {
-      try {
-        prompt.prompt();
-        prompt.userChoice?.then((choice: any) => {
+          setTimeout(() => {
+            clearInterval(interval);
+            if (!done) {
+              done = true;
+              resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
+            }
+          }, 1500);
+        });
+      }
+
+      if (prompt) {
+        try {
+          await prompt.prompt();
+          const choice = await prompt.userChoice;
           if (choice?.outcome === 'accepted') {
             hideBanner();
             if (installPwaBtn) installPwaBtn.style.display = 'none';
           }
-        }).catch(() => {});
-      } catch (err) {
-        console.warn('Install prompt error:', err);
-      } finally {
-        localDeferredPrompt = null;
-        (window as any).__deferredPrompt = null;
-        (window as any).__pwaPrompt = null;
+        } catch (err) {
+          console.warn('Install prompt error:', err);
+        } finally {
+          localDeferredPrompt = null;
+          (window as any).__deferredPrompt = null;
+          (window as any).__pwaPrompt = null;
+        }
+      } else {
+        // If browser already installed app or doesn't support beforeinstallprompt (e.g. Samsung Internet / iOS)
+        if ('getInstalledRelatedApps' in navigator) {
+          try {
+            const related = await (navigator as any).getInstalledRelatedApps();
+            if (related && related.length > 0) {
+              showToast('✅ RunCraft is already installed on this device!');
+              hideBanner();
+              if (installPwaBtn) installPwaBtn.style.display = 'none';
+              return;
+            }
+          } catch {}
+        }
+
+        // Show friendly actionable guidance toast
+        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+        const isSamsung = /SamsungBrowser/i.test(navigator.userAgent);
+        if (isSamsung) {
+          showToast('📲 In Samsung Internet: Tap ☰ (menu) → "Add page to" → "App screen" to install.');
+        } else if (isIOS) {
+          showToast('📲 In Safari: Tap Share (⎋) → "Add to Home Screen".');
+        } else {
+          showToast('📲 Tap your browser menu (⋮) → "Install app" or "Add to Home screen".');
+        }
       }
+    } finally {
+      isInstalling = false;
+      if (bannerInstallBtn) bannerInstallBtn.textContent = 'Install';
     }
   };
 
@@ -745,6 +779,9 @@ function setupMobileTabs() {
 
       // Expand drawer to show controls
       setDrawerCollapsed(false);
+
+      const drawerBody = document.getElementById('drawerBody');
+      if (drawerBody) drawerBody.scrollTop = 0;
 
       sections.forEach((sec) => {
         if (sec.getAttribute('data-section') === targetTab) {

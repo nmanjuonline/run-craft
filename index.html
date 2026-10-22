@@ -24,46 +24,18 @@
 
     <link rel="stylesheet" href="/src/client/style.css" />
 
-    <!-- Immediate PWA Prompt Capture & Installation Handler -->
+    <!-- Immediate PWA Prompt Capture (Race-Craft Pattern) -->
     <script>
-      (function() {
-        window.__deferredPrompt = null;
-
-        var isStandalone =
-          window.matchMedia('(display-mode: standalone)').matches ||
-          navigator.standalone === true ||
-          document.referrer.includes('android-app://');
-
-        if (isStandalone) return;
-
-        window.addEventListener('beforeinstallprompt', function(e) {
-          e.preventDefault();
-          window.__deferredPrompt = e;
-          var banner = document.getElementById('pwaInstallBanner');
-          if (banner && sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
-            banner.style.display = 'flex';
-          }
-        });
-
-        window.addEventListener('appinstalled', function() {
-          window.__deferredPrompt = null;
-          var banner = document.getElementById('pwaInstallBanner');
-          if (banner) banner.style.display = 'none';
-        });
-
-        if ('getInstalledRelatedApps' in navigator) {
-          navigator.getInstalledRelatedApps().then(function(apps) {
-            if (apps && apps.length > 0) {
-              var banner = document.getElementById('pwaInstallBanner');
-              if (banner) banner.style.display = 'none';
-            }
-          }).catch(function() {});
-        }
-      })();
+      window.__deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__deferredPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
+      });
     </script>
   </head>
   <body>
-    <!-- PWA Install Top Banner -->
+    <!-- PWA Install Top Banner (Race-Craft Pattern) -->
     <div id="pwaInstallBanner" class="pwa-install-banner" style="display: none;">
       <div class="pwa-banner-content">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="pwa-banner-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -81,36 +53,163 @@
         var banner = document.getElementById('pwaInstallBanner');
         var installBtn = document.getElementById('pwaBannerInstallBtn');
         var dismissBtn = document.getElementById('pwaBannerDismissBtn');
+        var deferredPrompt = window.__deferredPrompt || null;
+        var isInstalling = false;
+
+        // 1. Check if already running in standalone PWA mode
+        var isStandalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          navigator.standalone === true ||
+          document.referrer.includes('android-app://');
+
+        if (isStandalone) {
+          if (banner) banner.style.display = 'none';
+          return;
+        }
+
+        // 2. Clear any legacy localStorage lockout from previous dismissal
+        try {
+          localStorage.removeItem('rrc_pwa_dismissed_at');
+          localStorage.removeItem('rc_pwa_dismissed');
+          localStorage.removeItem('runcraft_pwa_dismissed');
+        } catch (e) {}
+
+        // 3. Only check current session dismissal
+        if (sessionStorage.getItem('rc_pwa_dismissed') === 'true') {
+          return;
+        }
+
+        function showBanner() {
+          if (sessionStorage.getItem('rc_pwa_dismissed') === 'true') return;
+          if (isStandalone) return;
+          if (banner) banner.style.display = 'flex';
+        }
+
+        function hideBanner() {
+          if (banner) banner.style.display = 'none';
+          sessionStorage.setItem('rc_pwa_dismissed', 'true');
+        }
 
         if (dismissBtn) {
-          dismissBtn.addEventListener('click', function() {
-            if (banner) banner.style.display = 'none';
-            sessionStorage.setItem('rc_pwa_dismissed', 'true');
-          });
+          dismissBtn.addEventListener('click', hideBanner);
         }
 
+        // 4. Capture prompt from early head script or events
+        if (window.__deferredPrompt) {
+          deferredPrompt = window.__deferredPrompt;
+          showBanner();
+        }
+
+        window.addEventListener('beforeinstallprompt', function(e) {
+          e.preventDefault();
+          deferredPrompt = e;
+          window.__deferredPrompt = e;
+          showBanner();
+        });
+
+        window.addEventListener('pwa-prompt-ready', function() {
+          if (window.__deferredPrompt) {
+            deferredPrompt = window.__deferredPrompt;
+            showBanner();
+          }
+        });
+
+        window.addEventListener('appinstalled', function() {
+          deferredPrompt = null;
+          window.__deferredPrompt = null;
+          hideBanner();
+        });
+
+        if ('getInstalledRelatedApps' in navigator) {
+          navigator.getInstalledRelatedApps().then(function(apps) {
+            if (apps && apps.length > 0) {
+              hideBanner();
+            }
+          }).catch(function() {});
+        }
+
+        // 5. Ensure banner displays on non-standalone browsers after brief delay (exact race-craft 400ms)
+        setTimeout(function() {
+          if (sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
+            showBanner();
+          }
+        }, 400);
+
+        // 6. Direct installation click handler (exact race-craft pattern)
         if (installBtn) {
-          installBtn.addEventListener('click', function() {
-            var promptEvent = window.__deferredPrompt;
-            if (!promptEvent) return;
+          installBtn.addEventListener('click', async function() {
+            var prompt = deferredPrompt || window.__deferredPrompt;
 
-            // Direct synchronous call to preserve user activation gesture!
-            promptEvent.prompt();
-            window.__deferredPrompt = null;
+            if (!prompt) {
+              isInstalling = true;
+              installBtn.textContent = 'Starting...';
+              installBtn.style.opacity = '0.8';
 
-            if (promptEvent.userChoice) {
-              promptEvent.userChoice.then(function(choice) {
-                if (choice && choice.outcome === 'accepted') {
-                  if (banner) banner.style.display = 'none';
+              prompt = await new Promise(function(resolve) {
+                var done = false;
+                var check = function() {
+                  var p = window.__deferredPrompt;
+                  if (p) {
+                    done = true;
+                    resolve(p);
+                    return true;
+                  }
+                  return false;
+                };
+
+                if (check()) return;
+
+                var onReady = function() {
+                  if (!done) {
+                    done = true;
+                    resolve(window.__deferredPrompt || null);
+                  }
+                };
+
+                window.addEventListener('pwa-prompt-ready', onReady, { once: true });
+                window.addEventListener('beforeinstallprompt', function(e) {
+                  if (!done) {
+                    done = true;
+                    resolve(e);
+                  }
+                }, { once: true });
+
+                var interval = setInterval(function() {
+                  if (check()) clearInterval(interval);
+                }, 100);
+
+                setTimeout(function() {
+                  clearInterval(interval);
+                  if (!done) {
+                    done = true;
+                    resolve(window.__deferredPrompt || null);
+                  }
+                }, 3000);
+              });
+
+              isInstalling = false;
+              installBtn.textContent = 'Install';
+              installBtn.style.opacity = '1';
+            }
+
+            if (prompt) {
+              try {
+                prompt.prompt();
+                if (prompt.userChoice) {
+                  prompt.userChoice.then(function(choice) {
+                    if (choice && choice.outcome === 'accepted') {
+                      hideBanner();
+                    }
+                  }).catch(function() {});
                 }
-              }).catch(function() {});
+              } catch (err) {
+                console.warn('Install prompt error:', err);
+              } finally {
+                deferredPrompt = null;
+                window.__deferredPrompt = null;
+              }
             }
           });
-        }
-
-        // If beforeinstallprompt fired before DOM element was parsed
-        if (window.__deferredPrompt && sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
-          if (banner) banner.style.display = 'flex';
         }
       })();
     </script>
@@ -739,6 +838,14 @@
           .catch((err) => {
             console.log('SW registration note:', err);
           });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
       }
     </script>
   </body>

@@ -202,7 +202,7 @@ function setupPwa() {
     showToast('🎉 RunCraft installed successfully!');
   });
 
-  // Direct installation click handler
+  // Direct installation click handler (race-craft direct prompt pattern)
   let isInstalling = false;
   const handleInstallClick = async () => {
     if (isInstalling) return;
@@ -210,13 +210,13 @@ function setupPwa() {
     if (bannerInstallBtn) bannerInstallBtn.textContent = 'Installing...';
 
     try {
-      let prompt = localDeferredPrompt || (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+      let prompt = (window as any).__deferredPrompt;
 
       if (!prompt) {
         prompt = await new Promise<any>((resolve) => {
           let done = false;
           const check = () => {
-            const p = (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+            const p = (window as any).__deferredPrompt;
             if (p) {
               done = true;
               resolve(p);
@@ -227,14 +227,13 @@ function setupPwa() {
 
           if (check()) return;
 
-          const onReady = () => {
+          window.addEventListener('pwa-prompt-ready', () => {
             if (!done) {
               done = true;
-              resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
+              resolve((window as any).__deferredPrompt || null);
             }
-          };
+          }, { once: true });
 
-          window.addEventListener('pwa-prompt-ready', onReady, { once: true });
           window.addEventListener('beforeinstallprompt', (e) => {
             if (!done) {
               done = true;
@@ -250,9 +249,9 @@ function setupPwa() {
             clearInterval(interval);
             if (!done) {
               done = true;
-              resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
+              resolve((window as any).__deferredPrompt || null);
             }
-          }, 1500);
+          }, 3000);
         });
       }
 
@@ -262,38 +261,11 @@ function setupPwa() {
           const choice = await prompt.userChoice;
           if (choice?.outcome === 'accepted') {
             hideBanner();
-            if (installPwaBtn) installPwaBtn.style.display = 'none';
           }
         } catch (err) {
           console.warn('Install prompt error:', err);
         } finally {
-          localDeferredPrompt = null;
           (window as any).__deferredPrompt = null;
-          (window as any).__pwaPrompt = null;
-        }
-      } else {
-        // If browser already installed app or doesn't support beforeinstallprompt (e.g. Samsung Internet / iOS)
-        if ('getInstalledRelatedApps' in navigator) {
-          try {
-            const related = await (navigator as any).getInstalledRelatedApps();
-            if (related && related.length > 0) {
-              showToast('✅ RunCraft is already installed on this device!');
-              hideBanner();
-              if (installPwaBtn) installPwaBtn.style.display = 'none';
-              return;
-            }
-          } catch {}
-        }
-
-        // Show friendly actionable guidance toast
-        const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        const isSamsung = /SamsungBrowser/i.test(navigator.userAgent);
-        if (isSamsung) {
-          showToast('📲 In Samsung Internet: Tap ☰ (menu) → "Add page to" → "App screen" to install.');
-        } else if (isIOS) {
-          showToast('📲 In Safari: Tap Share (⎋) → "Add to Home Screen".');
-        } else {
-          showToast('📲 Tap your browser menu (⋮) → "Install app" or "Add to Home screen".');
         }
       }
     } finally {
@@ -303,7 +275,6 @@ function setupPwa() {
   };
 
   bannerInstallBtn?.addEventListener('click', handleInstallClick);
-  installPwaBtn?.addEventListener('click', handleInstallClick);
 }
 
 /**

@@ -23,16 +23,36 @@
 
     <link rel="stylesheet" href="/src/client/style.css" />
 
-    <!-- Immediate PWA Prompt Capture (Race-Craft Pattern) -->
+    <!-- Immediate PWA Prompt Capture & Early SW Registration -->
     <script>
       window.__deferredPrompt = null;
-      window.__pwaPrompt = null;
       window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         window.__deferredPrompt = e;
-        window.__pwaPrompt = e;
         window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
       });
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then(function(reg) {
+            reg.update();
+          })
+          .catch(function(err) {});
+
+        var refreshing = false;
+        var isFirstInstall = !navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (isFirstInstall) {
+            isFirstInstall = false;
+            return;
+          }
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+      }
     </script>
   </head>
   <body>
@@ -684,27 +704,7 @@
       </div>
     </div>
 
-    <!-- PWA Service Worker Registration & App Orchestrator -->
+    <!-- App Orchestrator -->
     <script type="module" src="/src/client/main.ts"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker
-          .register('/sw.js')
-          .then(function(reg) {
-            reg.update();
-          })
-          .catch(function(err) {
-            console.log('SW registration note:', err);
-          });
-
-        var refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', function() {
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        });
-      }
-    </script>
   </body>
 </html>

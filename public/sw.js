@@ -3,7 +3,7 @@
  * Precaches core assets and provides offline-capable shell for PWA installability
  */
 
-const CACHE_NAME = 'runcraft-v4';
+const CACHE_NAME = 'runcraft-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

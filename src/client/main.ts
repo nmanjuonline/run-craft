@@ -211,7 +211,7 @@ function setupPwa() {
         try {
           const apps = await (navigator as any).getInstalledRelatedApps();
           if (apps && apps.length > 0) {
-            showToast('✨ RunCraft is already installed! Open it from your apps or home screen.');
+            showToast('✨ RunCraft is already installed on your device!');
             installPwaBtn.style.display = 'none';
             return;
           }
@@ -220,30 +220,8 @@ function setupPwa() {
         }
       }
 
-      // 4. Device & Browser specific fallback
-      const ua = navigator.userAgent;
-      const isSamsung = /SamsungBrowser/i.test(ua);
-      const isAndroidChrome = /Chrome/i.test(ua) && /Android/i.test(ua);
-      const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
-
-      if (isSamsung) {
-        showToast('📲 In Samsung Internet: Tap ☰ (bottom-right) ➔ tap "Add page to" ➔ "App".');
-        return;
-      }
-
-      if (isAndroidChrome) {
-        showToast('📲 In Chrome: Tap ⋮ (top-right) ➔ tap "Install app".');
-        return;
-      }
-
-      if (isIOS || isSafari) {
-        openPwaGuidanceModal();
-        return;
-      }
-
-      // Desktop Chrome / Edge
-      showToast('💻 Desktop: Click the install icon ⊕ in your browser address bar.');
+      // 4. If prompt still didn't arrive, notify briefly without manual instructions
+      showToast('⏳ Initializing installer... Please tap again in a moment.');
     });
   }
 

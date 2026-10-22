@@ -666,12 +666,12 @@ function setupMobileTabs() {
   const studioContainer = document.querySelector('.studio-container');
 
   const TAB_METADATA: Record<string, { icon: string; title: string }> = {
-    workouts: { icon: '🏃', title: 'Garmin Workouts & Ingestion' },
-    photo: { icon: '📷', title: 'Photo Atmosphere & Filters' },
-    metrics: { icon: '📊', title: 'Workout Metrics Toggles' },
-    style: { icon: '🎨', title: 'Aesthetics & Theme' },
-    widgets: { icon: '🛠️', title: 'Overlay Widgets' },
-    text: { icon: '✏️', title: 'Edit Stats & Text' },
+    workouts: { icon: '🏃', title: 'Garmin & Workouts' },
+    photo: { icon: '📷', title: 'Photo & Filter' },
+    metrics: { icon: '📊', title: 'Workout Metrics' },
+    style: { icon: '🎨', title: 'Theme & Style' },
+    widgets: { icon: '🛠️', title: 'Widgets' },
+    text: { icon: '✏️', title: 'Edit Stats' },
   };
 
   function setDrawerCollapsed(collapsed: boolean) {
@@ -1132,8 +1132,11 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
 
     // Update UI badge
     if (intervalsBtnLabel) intervalsBtnLabel.textContent = 'Garmin Synced ✓';
-    intervalsConnectBtn.style.background = '#00ff88';
-    intervalsConnectBtn.style.color = '#0b0f17';
+    const shortLabel = intervalsConnectBtn.querySelector('.btn-text-short');
+    if (shortLabel) shortLabel.textContent = 'Garmin ✓';
+    intervalsConnectBtn.classList.add('connected');
+    intervalsConnectBtn.style.background = '';
+    intervalsConnectBtn.style.color = '';
 
     // Show controls toolbar, hide connect prompt
     if (intervalsConnectPrompt) intervalsConnectPrompt.style.display = 'none';
@@ -1302,7 +1305,12 @@ function setupIntervalsModal() {
       const key = localStorage.getItem('intervals_api_key') || intervalsApiKeyInput.value.trim();
       if (key) {
         showToast('🔄 Syncing latest Garmin workouts...');
-        await loadIntervalsActivities(key, false, intervalsSelectedDays);
+        intervalsRefreshBtn.classList.add('is-syncing');
+        try {
+          await loadIntervalsActivities(key, false, intervalsSelectedDays);
+        } finally {
+          intervalsRefreshBtn.classList.remove('is-syncing');
+        }
       } else {
         openModal();
       }

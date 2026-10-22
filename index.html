@@ -60,12 +60,13 @@
       </div>
 
       <div class="nav-actions">
-        <button id="intervalsConnectBtn" class="btn btn-primary" title="Auto-Sync Garmin via Intervals.icu" style="background: #00f0ff; color: #0b0f17; box-shadow: 0 4px 16px rgba(0, 240, 255, 0.3);">
-          ⚡ <span id="intervalsBtnLabel" class="btn-text-full">Intervals.icu (Garmin)</span><span class="btn-text-short">Intervals</span>
+        <button id="intervalsConnectBtn" class="btn btn-intervals" title="Auto-Sync Garmin via Intervals.icu">
+          <span class="intervals-status-dot"></span>
+          <span id="intervalsBtnLabel" class="btn-text-full">Intervals (Garmin)</span><span class="btn-text-short">Intervals</span>
         </button>
 
         <button id="stravaConnectBtn" class="btn btn-secondary" title="Connect Strava Account">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7.008 13.828h4.172"/>
           </svg>
           <span id="stravaBtnLabel">Strava</span>
@@ -121,12 +122,12 @@
           <div class="drawer-header-row">
             <div class="drawer-title-group" id="drawerTitleGroup">
               <span class="drawer-active-icon" id="drawerActiveIcon">🏃</span>
-              <span class="drawer-active-title" id="drawerActiveTitle">Workout Data Source</span>
+              <span class="drawer-active-title" id="drawerActiveTitle">Garmin & Workouts</span>
             </div>
             <div class="drawer-header-actions">
               <button type="button" class="btn-drawer-quick" id="drawerQuickDownloadBtn" title="Download HD Image">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span>HD Save</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Save</span>
               </button>
               <button type="button" class="drawer-toggle-btn" id="drawerToggleBtn" aria-label="Toggle Controls Sheet">
                 <span id="drawerToggleIcon">⌄</span>
@@ -177,7 +178,7 @@
 
           <div class="card-glass">
             <div class="segmented-group" style="margin-bottom: 12px; width: 100%;">
-              <button class="segment-btn active" id="tabIntervalsBtn" style="flex: 1.2; color: var(--accent-cyan); font-weight: 800;">⚡ Intervals</button>
+              <button class="segment-btn active" id="tabIntervalsBtn" style="flex: 1.2;">⚡ Intervals</button>
               <button class="segment-btn" id="tabPresetsBtn" style="flex: 0.9;">Presets</button>
               <button class="segment-btn" id="tabGarminBtn" style="flex: 0.8;">.FIT</button>
               <button class="segment-btn" id="tabGpxBtn" style="flex: 0.8;">.GPX</button>
@@ -202,14 +203,15 @@
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88;"></span>
-                    <span id="intervalsAthleteLabel" style="font-size: 12px; font-weight: 700; color: var(--accent-cyan);">Garmin Athlete</span>
+                    <span id="intervalsAthleteLabel" style="font-size: 12.5px; font-weight: 700; color: var(--text-primary);">Garmin Athlete</span>
                   </div>
-                  <div style="display: flex; gap: 4px;">
-                    <button id="intervalsRefreshBtn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; font-weight: 700; border-radius: 6px;" title="Sync latest Garmin workouts">
-                      🔄 Sync
+                  <div class="athlete-actions-group">
+                    <button id="intervalsRefreshBtn" class="btn-athlete-action" title="Sync latest Garmin workouts">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                      <span>Sync</span>
                     </button>
-                    <button id="intervalsKeyChangeBtn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; border-radius: 6px;" title="Intervals.icu Settings / Key">
-                      ⚙️
+                    <button id="intervalsKeyChangeBtn" class="btn-athlete-action btn-athlete-icon" title="Intervals.icu Settings / Key">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     </button>
                   </div>
                 </div>

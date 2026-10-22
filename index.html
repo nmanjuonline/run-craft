@@ -9,6 +9,7 @@
     <!-- PWA & Mobile Web App Meta -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0b0f17" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RunCraft" />
@@ -23,18 +24,46 @@
 
     <link rel="stylesheet" href="/src/client/style.css" />
 
-    <!-- Capture PWA install prompt early before bundle mounts (Exact race-craft pattern) -->
+    <!-- Immediate PWA Prompt Capture & Installation Handler -->
     <script>
-      window.__deferredPrompt = null;
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        window.__deferredPrompt = e;
-        window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
-      });
+      (function() {
+        window.__deferredPrompt = null;
+
+        var isStandalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          navigator.standalone === true ||
+          document.referrer.includes('android-app://');
+
+        if (isStandalone) return;
+
+        window.addEventListener('beforeinstallprompt', function(e) {
+          e.preventDefault();
+          window.__deferredPrompt = e;
+          var banner = document.getElementById('pwaInstallBanner');
+          if (banner && sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
+            banner.style.display = 'flex';
+          }
+        });
+
+        window.addEventListener('appinstalled', function() {
+          window.__deferredPrompt = null;
+          var banner = document.getElementById('pwaInstallBanner');
+          if (banner) banner.style.display = 'none';
+        });
+
+        if ('getInstalledRelatedApps' in navigator) {
+          navigator.getInstalledRelatedApps().then(function(apps) {
+            if (apps && apps.length > 0) {
+              var banner = document.getElementById('pwaInstallBanner');
+              if (banner) banner.style.display = 'none';
+            }
+          }).catch(function() {});
+        }
+      })();
     </script>
   </head>
   <body>
-    <!-- PWA Install Top Banner (Race-Craft Pattern) -->
+    <!-- PWA Install Top Banner -->
     <div id="pwaInstallBanner" class="pwa-install-banner" style="display: none;">
       <div class="pwa-banner-content">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="pwa-banner-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -47,6 +76,44 @@
         <button id="pwaBannerDismissBtn" class="pwa-banner-dismiss" aria-label="Dismiss">✕</button>
       </div>
     </div>
+    <script>
+      (function() {
+        var banner = document.getElementById('pwaInstallBanner');
+        var installBtn = document.getElementById('pwaBannerInstallBtn');
+        var dismissBtn = document.getElementById('pwaBannerDismissBtn');
+
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', function() {
+            if (banner) banner.style.display = 'none';
+            sessionStorage.setItem('rc_pwa_dismissed', 'true');
+          });
+        }
+
+        if (installBtn) {
+          installBtn.addEventListener('click', function() {
+            var promptEvent = window.__deferredPrompt;
+            if (!promptEvent) return;
+
+            // Direct synchronous call to preserve user activation gesture!
+            promptEvent.prompt();
+            window.__deferredPrompt = null;
+
+            if (promptEvent.userChoice) {
+              promptEvent.userChoice.then(function(choice) {
+                if (choice && choice.outcome === 'accepted') {
+                  if (banner) banner.style.display = 'none';
+                }
+              }).catch(function() {});
+            }
+          });
+        }
+
+        // If beforeinstallprompt fired before DOM element was parsed
+        if (window.__deferredPrompt && sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
+          if (banner) banner.style.display = 'flex';
+        }
+      })();
+    </script>
 
     <!-- Top Navigation Bar -->
     <div id="toastNotification" class="toast" style="display: none;"></div>
@@ -670,16 +737,8 @@
             reg.update();
           })
           .catch((err) => {
-            console.log('SW registration skipped:', err);
+            console.log('SW registration note:', err);
           });
-
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        });
       }
     </script>
   </body>

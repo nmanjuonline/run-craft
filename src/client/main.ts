@@ -675,9 +675,74 @@ function setupMobileTabs() {
   const tabBtns = document.querySelectorAll<HTMLButtonElement>('.mobile-tab-btn');
   const sections = document.querySelectorAll<HTMLElement>('.studio-section');
 
+  const drawer = document.getElementById('mobileBottomDrawer');
+  const drawerHeader = document.getElementById('drawerHeader');
+  const drawerToggleBtn = document.getElementById('drawerToggleBtn');
+  const drawerToggleIcon = document.getElementById('drawerToggleIcon');
+  const drawerToggleText = document.getElementById('drawerToggleText');
+  const drawerActiveIcon = document.getElementById('drawerActiveIcon');
+  const drawerActiveTitle = document.getElementById('drawerActiveTitle');
+  const drawerQuickDownloadBtn = document.getElementById('drawerQuickDownloadBtn');
+  const studioContainer = document.querySelector('.studio-container');
+
+  const TAB_METADATA: Record<string, { icon: string; title: string }> = {
+    workouts: { icon: '🏃', title: 'Garmin Workouts & Ingestion' },
+    photo: { icon: '📷', title: 'Photo Atmosphere & Filters' },
+    metrics: { icon: '📊', title: 'Workout Metrics Toggles' },
+    style: { icon: '🎨', title: 'Aesthetics & Theme' },
+    widgets: { icon: '🛠️', title: 'Overlay Widgets' },
+    text: { icon: '✏️', title: 'Edit Stats & Text' },
+  };
+
+  function setDrawerCollapsed(collapsed: boolean) {
+    if (!drawer) return;
+    if (collapsed) {
+      drawer.classList.add('collapsed');
+      drawer.classList.remove('expanded');
+      studioContainer?.classList.add('drawer-is-collapsed');
+      if (drawerToggleIcon) drawerToggleIcon.textContent = '⌃';
+      if (drawerToggleText) drawerToggleText.textContent = 'Controls';
+    } else {
+      drawer.classList.remove('collapsed');
+      studioContainer?.classList.remove('drawer-is-collapsed');
+      if (drawerToggleIcon) drawerToggleIcon.textContent = '⌄';
+      if (drawerToggleText) drawerToggleText.textContent = 'Hide';
+    }
+  }
+
+  function toggleDrawer() {
+    if (!drawer) return;
+    const isCollapsed = drawer.classList.contains('collapsed');
+    setDrawerCollapsed(!isCollapsed);
+  }
+
+  drawerToggleBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDrawer();
+  });
+
+  drawerHeader?.addEventListener('click', () => {
+    toggleDrawer();
+  });
+
+  drawerQuickDownloadBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    downloadBtn?.click();
+  });
+
+  // Tapping canvas on mobile collapses drawer for unobstructed photo inspection
+  if (canvas) {
+    canvas.addEventListener('click', () => {
+      if (window.innerWidth <= 991 && drawer && !drawer.classList.contains('collapsed')) {
+        setDrawerCollapsed(true);
+      }
+    });
+  }
+
   // Sync initial tab state on mobile (Workouts is first tab)
   const activeTabBtn = document.querySelector<HTMLButtonElement>('.mobile-tab-btn.active');
-  const initialTab = activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'workouts';
+  const initialTab = activeTabBtn ? activeTabBtn.getAttribute('data-tab') || 'workouts' : 'workouts';
+
   sections.forEach((sec) => {
     if (sec.getAttribute('data-section') === initialTab) {
       sec.classList.add('active-mobile-section');
@@ -686,25 +751,34 @@ function setupMobileTabs() {
     }
   });
 
+  const initialMeta = TAB_METADATA[initialTab];
+  if (initialMeta) {
+    if (drawerActiveIcon) drawerActiveIcon.textContent = initialMeta.icon;
+    if (drawerActiveTitle) drawerActiveTitle.textContent = initialMeta.title;
+  }
+
   tabBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
-      const targetTab = btn.getAttribute('data-tab');
+      const targetTab = btn.getAttribute('data-tab') || 'workouts';
       tabBtns.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
+
+      // Expand drawer to show controls
+      setDrawerCollapsed(false);
 
       sections.forEach((sec) => {
         if (sec.getAttribute('data-section') === targetTab) {
           sec.classList.add('active-mobile-section');
+          sec.scrollTop = 0;
         } else {
           sec.classList.remove('active-mobile-section');
         }
       });
 
-      // On mobile split-screen, reset controls scroll to top so top of section is immediately visible below canvas
-      if (window.innerWidth <= 991) {
-        document.querySelectorAll<HTMLElement>('.panel-left, .panel-right').forEach((p) => {
-          p.scrollTop = 0;
-        });
+      const meta = TAB_METADATA[targetTab];
+      if (meta) {
+        if (drawerActiveIcon) drawerActiveIcon.textContent = meta.icon;
+        if (drawerActiveTitle) drawerActiveTitle.textContent = meta.title;
       }
     });
   });

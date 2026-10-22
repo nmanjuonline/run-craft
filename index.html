@@ -23,25 +23,33 @@
 
     <link rel="stylesheet" href="/src/client/style.css" />
 
-    <!-- Immediate PWA Prompt Capture & Service Worker Activation -->
+    <!-- Immediate PWA Prompt Capture (Race-Craft Pattern) -->
     <script>
+      window.__deferredPrompt = null;
       window.__pwaPrompt = null;
       window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
+        window.__deferredPrompt = e;
         window.__pwaPrompt = e;
-        console.log('[RunCraft PWA] beforeinstallprompt captured early');
         window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
       });
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
-          reg.update();
-        }).catch(function(e) {
-          console.warn('[RunCraft SW] register note:', e);
-        });
-      }
     </script>
   </head>
   <body>
+    <!-- PWA Install Top Banner (Race-Craft Pattern) -->
+    <div id="pwaInstallBanner" class="pwa-install-banner" style="display: none;">
+      <div class="pwa-banner-content">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="pwa-banner-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span class="pwa-banner-text">
+          <strong>Install RunCraft:</strong> Create workout photo overlays offline!
+        </span>
+      </div>
+      <div class="pwa-banner-actions">
+        <button id="pwaBannerInstallBtn" class="pwa-banner-btn">Install</button>
+        <button id="pwaBannerDismissBtn" class="pwa-banner-dismiss" aria-label="Dismiss">✕</button>
+      </div>
+    </div>
+
     <!-- Top Navigation Bar -->
     <div id="toastNotification" class="toast" style="display: none;"></div>
     <header class="navbar">
@@ -680,5 +688,25 @@
 
     <!-- PWA Service Worker Registration & App Orchestrator -->
     <script type="module" src="/src/client/main.ts"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then(function(reg) {
+            reg.update();
+          })
+          .catch(function(err) {
+            console.log('SW registration note:', err);
+          });
+
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+      }
+    </script>
   </body>
 </html>

@@ -150,6 +150,100 @@ body {
 }
 
 /* ==========================================================================
+   PWA Install Banner (Race-Craft Pattern)
+   ========================================================================== */
+.pwa-install-banner {
+  background: linear-gradient(90deg, #15803d 0%, #166534 100%);
+  color: #ffffff;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 998;
+  width: 100%;
+  box-sizing: border-box;
+  animation: fadeInBanner 0.25s ease-out;
+  flex-shrink: 0;
+}
+
+.pwa-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pwa-banner-icon {
+  flex-shrink: 0;
+  color: #c8ff00;
+}
+
+.pwa-banner-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.pwa-banner-text strong {
+  color: #c8ff00;
+}
+
+.pwa-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pwa-banner-btn {
+  background: #ffffff;
+  color: #14532d;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+}
+
+.pwa-banner-btn:active {
+  transform: scale(0.96);
+}
+
+.pwa-banner-dismiss {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: none;
+  font-size: 15px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.pwa-banner-dismiss:hover {
+  color: #ffffff;
+}
+
+@keyframes fadeInBanner {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
    Navigation Bar
    ========================================================================== */
 .navbar {

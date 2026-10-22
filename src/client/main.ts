@@ -128,168 +128,148 @@ function isPwaInstalled(): boolean {
 }
 
 function setupPwa() {
-  if (isPwaInstalled()) {
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as any).standalone === true ||
+    document.referrer.includes('android-app://');
+
+  const pwaBanner = document.getElementById('pwaInstallBanner');
+  const bannerInstallBtn = document.getElementById('pwaBannerInstallBtn');
+  const bannerDismissBtn = document.getElementById('pwaBannerDismissBtn');
+
+  if (isStandalone) {
     if (installPwaBtn) installPwaBtn.style.display = 'none';
+    if (pwaBanner) pwaBanner.style.display = 'none';
     return;
   }
 
-  // Intercept early prompt from <head> inline script
-  if ((window as any).__pwaPrompt) {
-    deferredPrompt = (window as any).__pwaPrompt;
-    if (pwaModalInstallActionBtn) {
-      pwaModalInstallActionBtn.style.display = 'block';
-    }
+  // Clear legacy lockout
+  try {
+    localStorage.removeItem('rrc_pwa_dismissed_at');
+    localStorage.removeItem('rc_pwa_dismissed');
+  } catch {}
+
+  function showBanner() {
+    if (sessionStorage.getItem('runcraft_pwa_dismissed') === 'true') return;
+    if (pwaBanner) pwaBanner.style.display = 'flex';
   }
 
-  window.addEventListener('pwa-prompt-ready', () => {
-    deferredPrompt = (window as any).__pwaPrompt;
-    if (pwaModalInstallActionBtn) {
-      pwaModalInstallActionBtn.style.display = 'block';
-    }
-  });
+  function hideBanner() {
+    if (pwaBanner) pwaBanner.style.display = 'none';
+    sessionStorage.setItem('runcraft_pwa_dismissed', 'true');
+  }
 
-  // Intercept Chrome/Edge/Android native prompt
-  window.addEventListener('beforeinstallprompt', (e) => {
+  bannerDismissBtn?.addEventListener('click', hideBanner);
+
+  // Capture prompt from early head script or events
+  let localDeferredPrompt: any = (window as any).__deferredPrompt || (window as any).__pwaPrompt || null;
+  if (localDeferredPrompt) {
+    showBanner();
+  }
+
+  const handlePrompt = (e: Event) => {
     e.preventDefault();
-    deferredPrompt = e;
+    localDeferredPrompt = e;
+    (window as any).__deferredPrompt = e;
     (window as any).__pwaPrompt = e;
-    if (pwaModalInstallActionBtn) {
-      pwaModalInstallActionBtn.style.display = 'block';
+    showBanner();
+  };
+
+  const handlePromptReady = () => {
+    const prompt = (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+    if (prompt) {
+      localDeferredPrompt = prompt;
+      showBanner();
     }
-  });
+  };
+
+  window.addEventListener('beforeinstallprompt', handlePrompt);
+  window.addEventListener('pwa-prompt-ready', handlePromptReady);
+
+  // Ensure banner displays on non-standalone browsers after brief delay (race-craft pattern)
+  setTimeout(() => {
+    if (sessionStorage.getItem('runcraft_pwa_dismissed') !== 'true') {
+      showBanner();
+    }
+  }, 400);
 
   window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
+    localDeferredPrompt = null;
+    (window as any).__deferredPrompt = null;
     (window as any).__pwaPrompt = null;
     if (installPwaBtn) installPwaBtn.style.display = 'none';
-    if (pwaInstallModal) pwaInstallModal.classList.remove('open');
-    showToast('✨ RunCraft installed successfully!');
+    hideBanner();
   });
 
-  if (installPwaBtn) {
-    installPwaBtn.addEventListener('click', async () => {
-      let promptToUse = deferredPrompt || (window as any).__pwaPrompt;
+  // Direct installation click handler (race-craft pattern)
+  const handleInstallClick = async () => {
+    let prompt = localDeferredPrompt || (window as any).__deferredPrompt || (window as any).__pwaPrompt;
 
-      // 1. If prompt hasn't arrived yet on initial click, wait up to 2.5 seconds with feedback
-      if (!promptToUse) {
-        const origText = installPwaBtn.innerHTML;
-        installPwaBtn.disabled = true;
-        installPwaBtn.innerHTML = '⏳ <span class="btn-text-full">Installing...</span><span class="btn-text-short">...</span>';
-
-        promptToUse = await new Promise((resolve) => {
-          if ((window as any).__pwaPrompt) return resolve((window as any).__pwaPrompt);
-          const timer = setTimeout(() => resolve(null), 2500);
-          window.addEventListener('pwa-prompt-ready', () => {
-            clearTimeout(timer);
-            resolve((window as any).__pwaPrompt);
-          }, { once: true });
-        });
-
-        installPwaBtn.disabled = false;
-        installPwaBtn.innerHTML = origText;
-      }
-
-      // 2. Direct installation via native browser dialog
-      if (promptToUse) {
-        try {
-          promptToUse.prompt();
-          const choice = await promptToUse.userChoice;
-          if (choice && choice.outcome === 'accepted') {
-            installPwaBtn.style.display = 'none';
-            showToast('✨ RunCraft installed to your device!');
+    if (!prompt) {
+      prompt = await new Promise<any>((resolve) => {
+        let done = false;
+        const check = () => {
+          const p = (window as any).__deferredPrompt || (window as any).__pwaPrompt;
+          if (p) {
+            done = true;
+            resolve(p);
+            return true;
           }
-          deferredPrompt = null;
-          (window as any).__pwaPrompt = null;
-          return;
-        } catch (err) {
-          console.warn('Direct installation prompt error:', err);
-        }
-      }
+          return false;
+        };
 
-      // 3. Check if already installed on device
-      if ('getInstalledRelatedApps' in navigator) {
-        try {
-          const apps = await (navigator as any).getInstalledRelatedApps();
-          if (apps && apps.length > 0) {
-            showToast('✨ RunCraft is already installed on your device!');
-            installPwaBtn.style.display = 'none';
-            return;
+        if (check()) return;
+
+        const onReady = () => {
+          if (!done) {
+            done = true;
+            resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
           }
-        } catch (e) {
-          // Ignore
-        }
-      }
+        };
 
-      // 4. If prompt still didn't arrive, notify briefly without manual instructions
-      showToast('⏳ Initializing installer... Please tap again in a moment.');
-    });
-  }
+        window.addEventListener('pwa-prompt-ready', onReady, { once: true });
+        window.addEventListener('beforeinstallprompt', (e) => {
+          if (!done) {
+            done = true;
+            resolve(e);
+          }
+        }, { once: true });
 
-  if (closePwaInstallModalBtn && pwaInstallModal) {
-    closePwaInstallModalBtn.addEventListener('click', () => {
-      pwaInstallModal.classList.remove('open');
-    });
-    pwaInstallModal.addEventListener('click', (e) => {
-      if (e.target === pwaInstallModal) {
-        pwaInstallModal.classList.remove('open');
-      }
-    });
-  }
+        const interval = setInterval(() => {
+          if (check()) clearInterval(interval);
+        }, 100);
 
-  if (pwaModalInstallActionBtn) {
-    pwaModalInstallActionBtn.addEventListener('click', async () => {
-      const promptToUse = deferredPrompt || (window as any).__pwaPrompt;
-      if (promptToUse) {
-        promptToUse.prompt();
-        const { outcome } = await promptToUse.userChoice;
-        if (outcome === 'accepted') {
-          if (installPwaBtn) installPwaBtn.style.display = 'none';
-          if (pwaInstallModal) pwaInstallModal.classList.remove('open');
-          showToast('✨ RunCraft installed successfully!');
-        }
-        deferredPrompt = null;
+        setTimeout(() => {
+          clearInterval(interval);
+          if (!done) {
+            done = true;
+            resolve((window as any).__deferredPrompt || (window as any).__pwaPrompt || null);
+          }
+        }, 3000);
+      });
+    }
+
+    if (prompt) {
+      try {
+        prompt.prompt();
+        prompt.userChoice?.then((choice: any) => {
+          if (choice?.outcome === 'accepted') {
+            hideBanner();
+            if (installPwaBtn) installPwaBtn.style.display = 'none';
+          }
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      } finally {
+        localDeferredPrompt = null;
+        (window as any).__deferredPrompt = null;
         (window as any).__pwaPrompt = null;
       }
-    });
-  }
-}
+    }
+  };
 
-function openPwaGuidanceModal() {
-  if (!pwaInstallModal || !pwaInstructionsContainer) return;
-
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-  let html = '';
-  if (isIOS || isSafari) {
-    html = `
-      <div style="font-size: 13px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px;">
-        🍏 iOS Safari Installation
-      </div>
-      <ol style="font-size: 13px; color: var(--text-secondary); line-height: 1.7; padding-left: 20px;">
-        <li>Tap the <strong>Share</strong> button <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: middle; display: inline-block;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> at the bottom of Safari.</li>
-        <li>Scroll down and tap <strong>"Add to Home Screen"</strong> <span style="font-size: 14px;">📲</span>.</li>
-        <li>Tap <strong>"Add"</strong> at the top-right. RunCraft will appear on your Home Screen as an offline-ready app!</li>
-      </ol>
-    `;
-  } else {
-    html = `
-      <div style="font-size: 13px; font-weight: 700; color: var(--accent-lime); margin-bottom: 8px;">
-        🤖 Android / Chrome Installation
-      </div>
-      <ol style="font-size: 13px; color: var(--text-secondary); line-height: 1.7; padding-left: 20px;">
-        <li>Tap the browser menu <strong style="font-size: 16px;">⋮</strong> in the top-right corner.</li>
-        <li>Select <strong>"Install App"</strong> or <strong>"Add to Home screen"</strong>.</li>
-        <li>Confirm to install RunCraft directly on your device.</li>
-      </ol>
-      <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">
-        💻 Desktop users: Look for the install icon <strong>⊕</strong> on the right side of the URL address bar.
-      </div>
-    `;
-  }
-
-  pwaInstructionsContainer.innerHTML = html;
-  pwaInstallModal.classList.add('open');
+  bannerInstallBtn?.addEventListener('click', handleInstallClick);
+  installPwaBtn?.addEventListener('click', handleInstallClick);
 }
 
 /**

@@ -1,25 +1,21 @@
-/**
- * RunCraft Service Worker
- * Precaches core assets and provides offline-capable shell for PWA installability
- */
-
-const CACHE_NAME = 'runcraft-v5';
-const PRECACHE_ASSETS = [
+// Service Worker for RunCraft
+const CACHE_NAME = 'runcraft-v6';
+const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png',
+  '/icon-maskable-192.png',
+  '/icon-maskable-512.png',
   '/icon.svg'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('Precache warning:', err);
-      });
+      return cache.addAll(ASSETS_TO_CACHE);
     }).then(() => self.skipWaiting())
   );
 });
@@ -38,25 +34,44 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Cache-first strategy for static assets, network-first with cache fallback for fetches
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  
-  event.respondWith(
-    fetch(event.request)
-      .then((networkRes) => {
-        if (networkRes && networkRes.status === 200 && networkRes.type === 'basic') {
-          const resClone = networkRes.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
-        }
-        return networkRes;
-      })
-      .catch(() => {
-        return caches.match(event.request).then((cachedRes) => {
-          if (cachedRes) return cachedRes;
-          if (event.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/');
+  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+    return;
+  }
+
+  // For HTML documents / navigation, use Network-First with cache fallback
+  // This guarantees users receive newly deployed code immediately upon refresh!
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
-        });
-      })
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/index.html') || caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Cache-first for hashed static assets (js, css, svg), network fallback
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request).then((response) => {
+        if (response && response.status === 200 && event.request.url.includes('/assets/')) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      });
+    })
   );
 });

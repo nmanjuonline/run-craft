@@ -3,14 +3,14 @@ import { execSync } from 'child_process';
 import { appRouter } from './src/index';
 
 function detectIsStage(mode: string): boolean {
-  if (process.env.CF_PAGES_BRANCH === 'master' || process.env.CF_PAGES_BRANCH === 'main') return false;
-  if (process.env.CF_PAGES_BRANCH === 'stage') return true;
-  if (mode === 'stage' || process.env.VITE_APP_ENV === 'stage') return true;
-  if (mode === 'production' || process.env.VITE_APP_ENV === 'production') return false;
+  if (process.env.CF_PAGES_BRANCH === 'stage' || process.env.VITE_APP_ENV === 'stage') return true;
+  if (process.env.CF_PAGES_BRANCH === 'master' || process.env.CF_PAGES_BRANCH === 'main' || process.env.VITE_APP_ENV === 'production') return false;
   try {
     const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
     if (branch === 'stage') return true;
+    if (branch === 'master' || branch === 'main') return false;
   } catch {}
+  if (mode === 'stage') return true;
   return false;
 }
 

@@ -838,14 +838,6 @@
           .catch((err) => {
             console.log('SW registration note:', err);
           });
-
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        });
       }
     </script>
   </body>

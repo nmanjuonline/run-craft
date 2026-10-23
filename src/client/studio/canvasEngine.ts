@@ -1250,7 +1250,7 @@ export class CanvasEngine {
         secParts.push(`❤️ ${activity.avgHeartRate} bpm`);
       }
       if (metricsConfig.cadence && activity.avgCadence) {
-        secParts.push(`⚡ ${activity.avgCadence} spm`);
+        secParts.push(`👟 ${activity.avgCadence} spm`);
       }
       if (metricsConfig.calories && activity.calories) {
         secParts.push(`🔥 ${activity.calories} kcal`);
@@ -2003,7 +2003,7 @@ export class CanvasEngine {
     const secMetrics: string[] = [];
     if (config.showSecondaryStats !== false) {
       if (metricsConfig.heartRate !== false && activity.avgHeartRate) secMetrics.push(`❤️ ${activity.avgHeartRate} bpm`);
-      if (metricsConfig.cadence && activity.avgCadence) secMetrics.push(`⚡ ${activity.avgCadence} spm`);
+      if (metricsConfig.cadence && activity.avgCadence) secMetrics.push(`👟 ${activity.avgCadence} spm`);
       if (metricsConfig.calories && activity.calories) secMetrics.push(`🔥 ${activity.calories} kcal`);
       if (metricsConfig.power && activity.avgPowerWatts) secMetrics.push(`⚡ ${activity.avgPowerWatts} W`);
 

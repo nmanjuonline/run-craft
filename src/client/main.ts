@@ -105,6 +105,30 @@ const editLocationInput = document.getElementById('editLocationInput') as HTMLIn
 // Action Buttons
 const downloadBtn = document.getElementById('downloadBtn') as HTMLButtonElement;
 const shareBtn = document.getElementById('shareBtn') as HTMLButtonElement;
+const copyImageBtn = document.getElementById('copyImageBtn') as HTMLButtonElement | null;
+
+// History & Navbar Controls
+const undoBtn = document.getElementById('undoBtn') as HTMLButtonElement | null;
+const redoBtn = document.getElementById('redoBtn') as HTMLButtonElement | null;
+const focusModeBtn = document.getElementById('focusModeBtn') as HTMLButtonElement | null;
+const shortcutsBtn = document.getElementById('shortcutsBtn') as HTMLButtonElement | null;
+const shortcutsModal = document.getElementById('shortcutsModal') as HTMLElement | null;
+const closeShortcutsModalBtn = document.getElementById('closeShortcutsModalBtn') as HTMLButtonElement | null;
+
+// Zoom & Pan Toolbar Controls
+const zoomInBtn = document.getElementById('zoomInBtn') as HTMLButtonElement | null;
+const zoomOutBtn = document.getElementById('zoomOutBtn') as HTMLButtonElement | null;
+const zoomResetBtn = document.getElementById('zoomResetBtn') as HTMLButtonElement | null;
+const panResetBtn = document.getElementById('panResetBtn') as HTMLButtonElement | null;
+const zoomReadoutText = document.getElementById('zoomReadoutText') as HTMLElement | null;
+const canvasPanHint = document.getElementById('canvasPanHint') as HTMLElement | null;
+const canvasWrapper = document.getElementById('canvasWrapper') as HTMLElement | null;
+
+// Filter & Color Picker Controls
+const workoutSearchInput = document.getElementById('workoutSearchInput') as HTMLInputElement | null;
+const resetFiltersBtn = document.getElementById('resetFiltersBtn') as HTMLButtonElement | null;
+const customColorPicker = document.getElementById('customColorPicker') as HTMLInputElement | null;
+const globalDropOverlay = document.getElementById('globalDropOverlay') as HTMLElement | null;
 
 // Strava Modal
 const stravaConnectBtn = document.getElementById('stravaConnectBtn') as HTMLButtonElement;
@@ -144,9 +168,14 @@ async function initApp() {
   setupExport();
   setupStravaModal();
   setupIntervalsModal();
+  setupCanvasInteraction();
+  setupShortcutsAndFocusMode();
+  setupGlobalDragDrop();
+  setupWorkoutSearch();
 
-  // Initial Render
+  // Initial Render & History Baseline
   triggerRender();
+  pushHistory(true);
 
   // Handle Strava OAuth callback if returning from Strava redirect
   await handleOAuthCallback();
@@ -199,6 +228,7 @@ function renderPresetsList() {
       currentActivity = { ...act };
       syncEditorInputs();
       triggerRender();
+      pushHistory(true);
     });
     viewPresets.appendChild(item);
   });
@@ -223,6 +253,172 @@ function syncEditorInputs() {
     currentActivity.locationCity = subtitle;
   }
 }
+
+function syncSliderInputs() {
+  if (vignetteSlider) {
+    vignetteSlider.value = currentConfig.photoFilters.vignette.toString();
+    vignetteVal.textContent = `${Math.round(currentConfig.photoFilters.vignette * 100)}%`;
+  }
+  if (brightnessSlider) {
+    brightnessSlider.value = currentConfig.photoFilters.brightness.toString();
+    brightnessVal.textContent = `${Math.round(currentConfig.photoFilters.brightness * 100)}%`;
+  }
+  if (contrastSlider) {
+    contrastSlider.value = currentConfig.photoFilters.contrast.toString();
+    contrastVal.textContent = `${Math.round(currentConfig.photoFilters.contrast * 100)}%`;
+  }
+  if (saturationSlider) {
+    saturationSlider.value = currentConfig.photoFilters.saturation.toString();
+    saturationVal.textContent = `${Math.round(currentConfig.photoFilters.saturation * 100)}%`;
+  }
+  if (opacitySlider) {
+    opacitySlider.value = currentConfig.cardOpacity.toString();
+    opacityVal.textContent = `${Math.round(currentConfig.cardOpacity * 100)}%`;
+  }
+  if (glowSlider && glowVal) {
+    const g = currentConfig.glowIntensity ?? 0.7;
+    glowSlider.value = g.toString();
+    glowVal.textContent = `${Math.round(g * 100)}%`;
+  }
+}
+
+function syncTogglesState() {
+  if (togglePolyline) togglePolyline.checked = !!currentConfig.showPolyline;
+  if (toggleGlow) toggleGlow.checked = !!currentConfig.showGlow;
+  if (togglePins) togglePins.checked = !!currentConfig.showStartFinishPins;
+  if (toggleHeader) toggleHeader.checked = !!currentConfig.showTitleHeader;
+  if (toggleHeroStats) toggleHeroStats.checked = !!currentConfig.showHeroStats;
+  if (toggleSecondaryStats) toggleSecondaryStats.checked = !!currentConfig.showSecondaryStats;
+  if (toggleHrZones) toggleHrZones.checked = !!currentConfig.showHrZones;
+  if (toggleWatermark) toggleWatermark.checked = !!currentConfig.showWatermark;
+
+  if (currentConfig.metrics) {
+    if (toggleMetricDist) toggleMetricDist.checked = currentConfig.metrics.distance;
+    if (toggleMetricTime) toggleMetricTime.checked = currentConfig.metrics.time;
+    if (toggleMetricPace) toggleMetricPace.checked = currentConfig.metrics.pace;
+    if (toggleMetricEle) toggleMetricEle.checked = currentConfig.metrics.elevation;
+    if (toggleMetricHr) toggleMetricHr.checked = currentConfig.metrics.heartRate;
+    if (toggleMetricCadence) toggleMetricCadence.checked = currentConfig.metrics.cadence;
+    if (toggleMetricCalories) toggleMetricCalories.checked = currentConfig.metrics.calories;
+    if (toggleMetricPower) toggleMetricPower.checked = currentConfig.metrics.power;
+  }
+
+  const transparentToggle = document.getElementById('transparentBgToggle') as HTMLInputElement | null;
+  if (transparentToggle) transparentToggle.checked = !!currentConfig.transparentBackground;
+
+  // Sync aspect ratio buttons
+  document.querySelectorAll<HTMLButtonElement>('[data-ratio]').forEach((btn) => {
+    if (btn.getAttribute('data-ratio') === currentConfig.aspectRatio) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // Sync template cards
+  document.querySelectorAll<HTMLButtonElement>('.layout-template-card').forEach((card) => {
+    if (card.getAttribute('data-layout') === currentConfig.layoutId) {
+      card.classList.add('active');
+    } else {
+      card.classList.remove('active');
+    }
+  });
+
+  // Sync palette color dots
+  document.querySelectorAll<HTMLElement>('.color-dot').forEach((dot) => {
+    if (dot.getAttribute('data-color') === currentConfig.accentColor) {
+      dot.classList.add('active');
+    } else {
+      dot.classList.remove('active');
+    }
+  });
+
+  if (customColorPicker) {
+    customColorPicker.value = currentConfig.accentColor;
+  }
+}
+
+// ==========================================================================
+// History (Undo / Redo) Architecture
+// ==========================================================================
+interface HistorySnapshot {
+  activity: WorkoutActivity;
+  config: OverlayConfig;
+  photoOffset: { x: number; y: number };
+  photoZoom: number;
+}
+
+const historyStack: HistorySnapshot[] = [];
+let historyIndex = -1;
+let historyDebounceTimer: any = null;
+
+function updateHistoryButtons() {
+  if (undoBtn) undoBtn.disabled = historyIndex <= 0;
+  if (redoBtn) redoBtn.disabled = historyIndex >= historyStack.length - 1;
+}
+
+function pushHistory(immediate = false) {
+  const saveSnapshot = () => {
+    const transform = canvasEngine
+      ? canvasEngine.getImageTransform()
+      : { offset: { x: 0, y: 0 }, zoom: 1.0 };
+
+    const snapshot: HistorySnapshot = {
+      activity: JSON.parse(JSON.stringify(currentActivity)),
+      config: JSON.parse(JSON.stringify(currentConfig)),
+      photoOffset: { ...transform.offset },
+      photoZoom: transform.zoom,
+    };
+
+    if (historyIndex < historyStack.length - 1) {
+      historyStack.splice(historyIndex + 1);
+    }
+
+    historyStack.push(snapshot);
+    if (historyStack.length > 50) historyStack.shift();
+    historyIndex = historyStack.length - 1;
+    updateHistoryButtons();
+  };
+
+  if (immediate) {
+    clearTimeout(historyDebounceTimer);
+    saveSnapshot();
+  } else {
+    clearTimeout(historyDebounceTimer);
+    historyDebounceTimer = setTimeout(saveSnapshot, 250);
+  }
+}
+
+function undo() {
+  if (historyIndex > 0) {
+    historyIndex--;
+    applyHistoryState(historyStack[historyIndex]);
+    showToast('Undo');
+  }
+}
+
+function redo() {
+  if (historyIndex < historyStack.length - 1) {
+    historyIndex++;
+    applyHistoryState(historyStack[historyIndex]);
+    showToast('Redo');
+  }
+}
+
+function applyHistoryState(state: HistorySnapshot) {
+  currentActivity = JSON.parse(JSON.stringify(state.activity));
+  currentConfig = JSON.parse(JSON.stringify(state.config));
+  if (canvasEngine) {
+    canvasEngine.setImageTransform(state.photoOffset, state.photoZoom);
+    if (zoomReadoutText) zoomReadoutText.textContent = `${Math.round(state.photoZoom * 100)}%`;
+  }
+  syncEditorInputs();
+  syncSliderInputs();
+  syncTogglesState();
+  triggerRender();
+  updateHistoryButtons();
+}
+
 
 function setupTabs() {
   tabIntervalsBtn.addEventListener('click', () => {
@@ -363,7 +559,7 @@ function setupPhotoUpload() {
 
 function handlePhotoFile(file: File) {
   if (!file.type.startsWith('image/')) {
-    alert('Please choose an image file (JPEG, PNG, WEBP).');
+    showToast('Please choose an image file (JPEG, PNG, WEBP).', true);
     return;
   }
   const reader = new FileReader();
@@ -371,6 +567,8 @@ function handlePhotoFile(file: File) {
     const dataUrl = e.target?.result as string;
     document.querySelectorAll('.sample-thumb').forEach((t) => t.classList.remove('active'));
     loadBackdropImage(dataUrl);
+    pushHistory(true);
+    showToast('⚡ Backdrop photo updated!');
   };
   reader.readAsDataURL(file);
 }
@@ -381,6 +579,12 @@ function setupSliders() {
     currentConfig.photoFilters.vignette = v;
     vignetteVal.textContent = `${Math.round(v * 100)}%`;
     triggerRender();
+    pushHistory();
+  });
+  vignetteSlider.addEventListener('dblclick', () => {
+    vignetteSlider.value = '0.35';
+    vignetteSlider.dispatchEvent(new Event('input'));
+    showToast('Dark vignette reset (35%)');
   });
 
   brightnessSlider.addEventListener('input', () => {
@@ -388,6 +592,12 @@ function setupSliders() {
     currentConfig.photoFilters.brightness = v;
     brightnessVal.textContent = `${Math.round(v * 100)}%`;
     triggerRender();
+    pushHistory();
+  });
+  brightnessSlider.addEventListener('dblclick', () => {
+    brightnessSlider.value = '1.0';
+    brightnessSlider.dispatchEvent(new Event('input'));
+    showToast('Brightness reset (100%)');
   });
 
   contrastSlider.addEventListener('input', () => {
@@ -395,6 +605,12 @@ function setupSliders() {
     currentConfig.photoFilters.contrast = v;
     contrastVal.textContent = `${Math.round(v * 100)}%`;
     triggerRender();
+    pushHistory();
+  });
+  contrastSlider.addEventListener('dblclick', () => {
+    contrastSlider.value = '1.05';
+    contrastSlider.dispatchEvent(new Event('input'));
+    showToast('Contrast reset (105%)');
   });
 
   saturationSlider.addEventListener('input', () => {
@@ -402,6 +618,12 @@ function setupSliders() {
     currentConfig.photoFilters.saturation = v;
     saturationVal.textContent = `${Math.round(v * 100)}%`;
     triggerRender();
+    pushHistory();
+  });
+  saturationSlider.addEventListener('dblclick', () => {
+    saturationSlider.value = '1.05';
+    saturationSlider.dispatchEvent(new Event('input'));
+    showToast('Saturation reset (105%)');
   });
 
   opacitySlider.addEventListener('input', () => {
@@ -409,6 +631,12 @@ function setupSliders() {
     currentConfig.cardOpacity = v;
     opacityVal.textContent = `${Math.round(v * 100)}%`;
     triggerRender();
+    pushHistory();
+  });
+  opacitySlider.addEventListener('dblclick', () => {
+    opacitySlider.value = '0.85';
+    opacitySlider.dispatchEvent(new Event('input'));
+    showToast('Card opacity reset (85%)');
   });
 
   if (glowSlider && glowVal) {
@@ -417,6 +645,30 @@ function setupSliders() {
       currentConfig.glowIntensity = v;
       glowVal.textContent = `${Math.round(v * 100)}%`;
       triggerRender();
+      pushHistory();
+    });
+    glowSlider.addEventListener('dblclick', () => {
+      glowSlider.value = '0.70';
+      glowSlider.dispatchEvent(new Event('input'));
+      showToast('Glow intensity reset (70%)');
+    });
+  }
+
+  // One-click Reset Atmosphere Filters
+  if (resetFiltersBtn) {
+    resetFiltersBtn.addEventListener('click', () => {
+      currentConfig.photoFilters = {
+        brightness: 1.0,
+        contrast: 1.05,
+        saturation: 1.05,
+        vignette: 0.35,
+        blur: 0,
+        exposure: 0,
+      };
+      syncSliderInputs();
+      triggerRender();
+      pushHistory();
+      showToast('Photo atmosphere filters reset to defaults');
     });
   }
 }
@@ -425,6 +677,7 @@ function setupToggles() {
   togglePolyline.addEventListener('change', () => {
     currentConfig.showPolyline = togglePolyline.checked;
     triggerRender();
+    pushHistory();
   });
   toggleGlow.addEventListener('change', () => {
     currentConfig.showGlow = toggleGlow.checked;
@@ -432,32 +685,39 @@ function setupToggles() {
       glowSliderGroup.style.display = toggleGlow.checked ? 'block' : 'none';
     }
     triggerRender();
+    pushHistory();
   });
   togglePins.addEventListener('change', () => {
     currentConfig.showStartFinishPins = togglePins.checked;
     triggerRender();
+    pushHistory();
   });
   toggleHeader.addEventListener('change', () => {
     currentConfig.showTitleHeader = toggleHeader.checked;
     triggerRender();
+    pushHistory();
   });
   toggleHeroStats.addEventListener('change', () => {
     currentConfig.showHeroStats = toggleHeroStats.checked;
     triggerRender();
+    pushHistory();
   });
   if (toggleSecondaryStats) {
     toggleSecondaryStats.addEventListener('change', () => {
       currentConfig.showSecondaryStats = toggleSecondaryStats.checked;
       triggerRender();
+      pushHistory();
     });
   }
   toggleHrZones.addEventListener('change', () => {
     currentConfig.showHrZones = toggleHrZones.checked;
     triggerRender();
+    pushHistory();
   });
   toggleWatermark.addEventListener('change', () => {
     currentConfig.showWatermark = toggleWatermark.checked;
     triggerRender();
+    pushHistory();
   });
 
   // Individual Metric Toggles
@@ -481,6 +741,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.distance = toggleMetricDist.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricTime) {
@@ -488,6 +749,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.time = toggleMetricTime.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricPace) {
@@ -495,6 +757,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.pace = toggleMetricPace.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricEle) {
@@ -502,6 +765,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.elevation = toggleMetricEle.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricHr) {
@@ -509,6 +773,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.heartRate = toggleMetricHr.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricCadence) {
@@ -516,6 +781,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.cadence = toggleMetricCadence.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricCalories) {
@@ -523,6 +789,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.calories = toggleMetricCalories.checked;
       triggerRender();
+      pushHistory();
     });
   }
   if (toggleMetricPower) {
@@ -530,6 +797,7 @@ function setupToggles() {
       ensureMetrics();
       currentConfig.metrics.power = toggleMetricPower.checked;
       triggerRender();
+      pushHistory();
     });
   }
 
@@ -553,6 +821,7 @@ function setupToggles() {
         photoDropzone?.classList.remove('photo-controls-disabled');
       }
       triggerRender();
+      pushHistory();
     });
   }
 }
@@ -731,6 +1000,7 @@ function setupAspectRatios() {
       const ratio = btn.getAttribute('data-ratio') as AspectRatio;
       currentConfig.aspectRatio = ratio;
       triggerRender();
+      pushHistory();
     });
   });
 }
@@ -743,8 +1013,21 @@ function setupPalette() {
       dot.classList.add('active');
       currentConfig.accentColor = dot.getAttribute('data-color') || '#c8ff00';
       triggerRender();
+      pushHistory();
     });
   });
+
+  if (customColorPicker) {
+    customColorPicker.addEventListener('input', () => {
+      dots.forEach((d) => d.classList.remove('active'));
+      currentConfig.accentColor = customColorPicker.value;
+      triggerRender();
+    });
+    customColorPicker.addEventListener('change', () => {
+      pushHistory();
+      showToast(`Selected custom accent: ${customColorPicker.value}`);
+    });
+  }
 
   const routeBtns = document.querySelectorAll('[data-routemode]');
   routeBtns.forEach((btn) => {
@@ -753,6 +1036,7 @@ function setupPalette() {
       btn.classList.add('active');
       currentConfig.routeColorMode = (btn.getAttribute('data-routemode') || 'elevation') as any;
       triggerRender();
+      pushHistory();
     });
   });
 }
@@ -766,6 +1050,7 @@ function setupLayoutTemplates() {
       const layout = (card.getAttribute('data-layout') || 'classic') as OverlayLayoutId;
       currentConfig.layoutId = layout;
       triggerRender();
+      pushHistory();
       const label = card.querySelector('.ltc-label')?.textContent || layout;
       showToast(`Selected: ${label} layout`);
     });
@@ -811,6 +1096,7 @@ function renderGearChips() {
       currentActivity.gearName = gear;
       currentActivity.locationCity = newLocation;
       triggerRender();
+      pushHistory();
     });
     chipsContainer.appendChild(chip);
   });
@@ -821,6 +1107,7 @@ function setupTextEditor() {
   editTitleInput.addEventListener('input', () => {
     currentActivity.title = editTitleInput.value;
     triggerRender();
+    pushHistory();
   });
   editDistInput.addEventListener('input', () => {
     const km = parseFloat(editDistInput.value) || 0;
@@ -829,14 +1116,17 @@ function setupTextEditor() {
       currentActivity.avgPaceSecPerKm = Math.round(currentActivity.movingTimeSec / km);
     }
     triggerRender();
+    pushHistory();
   });
   editEleInput.addEventListener('input', () => {
     currentActivity.elevationGainMeters = parseInt(editEleInput.value, 10) || 0;
     triggerRender();
+    pushHistory();
   });
   editLocationInput.addEventListener('input', () => {
     currentActivity.locationCity = editLocationInput.value;
     triggerRender();
+    pushHistory();
   });
 }
 
@@ -851,6 +1141,30 @@ function setupExport() {
     link.click();
     showToast(isTrans ? 'Downloaded transparent overlay PNG!' : 'Downloaded HD Image!');
   });
+
+  // Copy Image to Clipboard (Instant sharing)
+  if (copyImageBtn) {
+    copyImageBtn.addEventListener('click', () => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          showToast('Could not generate image blob', true);
+          return;
+        }
+        if (navigator.clipboard && (window as any).ClipboardItem) {
+          try {
+            const item = new (window as any).ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([item]);
+            showToast('📋 Copied HD image to clipboard! Ready to paste.');
+            return;
+          } catch (clipErr) {
+            console.warn('Clipboard write failed, fallback to download:', clipErr);
+          }
+        }
+        downloadBtn.click();
+        showToast('Image downloaded! (Clipboard write not permitted in browser)');
+      }, 'image/png', 1.0);
+    });
+  }
 
   // Download Transparent Overlay (No background / overlay only)
   const downloadOverlayBtn = document.getElementById('downloadOverlayBtn');
@@ -906,11 +1220,345 @@ function setupExport() {
       } else {
         // Fallback for desktop browsers without Web Share files support
         downloadBtn.click();
-        alert('Image downloaded! You can now upload it directly to Instagram Stories or your feed.');
+        showToast('Image downloaded! Ready to share to Stories or feed.');
       }
     }, 'image/png', 0.95);
   });
 }
+
+/**
+ * Direct Canvas Manipulation: Drag to Pan Photo, Wheel to Zoom, Controls
+ */
+function setupCanvasInteraction() {
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialOffset = { x: 0, y: 0 };
+
+  function updateZoomReadout() {
+    if (zoomReadoutText && canvasEngine) {
+      const { zoom } = canvasEngine.getImageTransform();
+      zoomReadoutText.textContent = `${Math.round(zoom * 100)}%`;
+    }
+  }
+
+  function onPointerDown(clientX: number, clientY: number) {
+    if (!canvasEngine || !canvasEngine.hasImage()) return;
+    isDragging = true;
+    startX = clientX;
+    startY = clientY;
+    initialOffset = canvasEngine.getImageTransform().offset;
+    canvasWrapper?.classList.add('is-panning');
+    if (canvasPanHint) canvasPanHint.style.opacity = '0';
+  }
+
+  function onPointerMove(clientX: number, clientY: number) {
+    if (!isDragging || !canvasEngine) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const deltaX = (clientX - startX) * scaleX;
+    const deltaY = (clientY - startY) * scaleY;
+
+    const currentZoom = canvasEngine.getImageTransform().zoom;
+    canvasEngine.setImageTransform(
+      {
+        x: initialOffset.x + deltaX,
+        y: initialOffset.y + deltaY,
+      },
+      currentZoom
+    );
+    triggerRender();
+  }
+
+  function onPointerUp() {
+    if (isDragging) {
+      isDragging = false;
+      canvasWrapper?.classList.remove('is-panning');
+      pushHistory();
+    }
+  }
+
+  // Mouse drag
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    onPointerDown(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) onPointerMove(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mouseup', () => {
+    onPointerUp();
+  });
+
+  // Touch drag
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (isDragging && e.touches.length === 1) {
+      onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', () => {
+    onPointerUp();
+  });
+
+  // Mouse wheel zoom
+  canvas.addEventListener('wheel', (e) => {
+    if (!canvasEngine || !canvasEngine.hasImage()) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.08 : 0.92;
+    const { offset, zoom } = canvasEngine.getImageTransform();
+    const newZoom = Math.max(0.5, Math.min(4.0, zoom * factor));
+    canvasEngine.setImageTransform(offset, newZoom);
+    updateZoomReadout();
+    triggerRender();
+    pushHistory();
+    if (canvasPanHint) canvasPanHint.style.opacity = '0';
+  }, { passive: false });
+
+  // Double click canvas to reset pan & zoom
+  canvas.addEventListener('dblclick', () => {
+    if (!canvasEngine || !canvasEngine.hasImage()) return;
+    canvasEngine.resetImageTransform();
+    updateZoomReadout();
+    triggerRender();
+    pushHistory();
+    showToast('Reset photo position and zoom');
+  });
+
+  // Floating Zoom Toolbar Buttons
+  zoomInBtn?.addEventListener('click', () => {
+    if (!canvasEngine) return;
+    const { offset, zoom } = canvasEngine.getImageTransform();
+    const newZoom = Math.min(4.0, zoom * 1.15);
+    canvasEngine.setImageTransform(offset, newZoom);
+    updateZoomReadout();
+    triggerRender();
+    pushHistory();
+  });
+
+  zoomOutBtn?.addEventListener('click', () => {
+    if (!canvasEngine) return;
+    const { offset, zoom } = canvasEngine.getImageTransform();
+    const newZoom = Math.max(0.5, zoom * 0.85);
+    canvasEngine.setImageTransform(offset, newZoom);
+    updateZoomReadout();
+    triggerRender();
+    pushHistory();
+  });
+
+  zoomResetBtn?.addEventListener('click', () => {
+    if (!canvasEngine) return;
+    canvasEngine.resetImageTransform();
+    updateZoomReadout();
+    triggerRender();
+    pushHistory();
+    showToast('Reset photo zoom and position');
+  });
+
+  panResetBtn?.addEventListener('click', () => {
+    if (!canvasEngine) return;
+    const { zoom } = canvasEngine.getImageTransform();
+    canvasEngine.setImageTransform({ x: 0, y: 0 }, zoom);
+    triggerRender();
+    pushHistory();
+    showToast('Centered photo position');
+  });
+}
+
+/**
+ * Keyboard Shortcuts Guide & Focus Canvas Mode
+ */
+function setupShortcutsAndFocusMode() {
+  const studioContainer = document.querySelector('.studio-container');
+
+  undoBtn?.addEventListener('click', undo);
+  redoBtn?.addEventListener('click', redo);
+
+  function toggleFocusMode() {
+    if (!studioContainer) return;
+    const isFocus = studioContainer.classList.toggle('is-focus-mode');
+    focusModeBtn?.classList.toggle('active', isFocus);
+    showToast(isFocus ? 'Entered Focus Canvas Mode (press F or Esc to exit)' : 'Exited Focus Mode');
+  }
+
+  focusModeBtn?.addEventListener('click', toggleFocusMode);
+
+  function toggleShortcutsModal(show?: boolean) {
+    if (!shortcutsModal) return;
+    const shouldShow = show !== undefined ? show : !shortcutsModal.classList.contains('open');
+    if (shouldShow) {
+      shortcutsModal.classList.add('open');
+    } else {
+      shortcutsModal.classList.remove('open');
+    }
+  }
+
+  shortcutsBtn?.addEventListener('click', () => toggleShortcutsModal(true));
+  closeShortcutsModalBtn?.addEventListener('click', () => toggleShortcutsModal(false));
+  shortcutsModal?.addEventListener('click', (e) => {
+    if (e.target === shortcutsModal) toggleShortcutsModal(false);
+  });
+
+  // Global Keyboard Shortcuts
+  window.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement;
+    const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+    // Escape closes any modal or exits focus mode
+    if (e.key === 'Escape') {
+      if (shortcutsModal?.classList.contains('open')) {
+        toggleShortcutsModal(false);
+        return;
+      }
+      if (intervalsModal?.classList.contains('open')) {
+        intervalsModal.classList.remove('open');
+        return;
+      }
+      if (stravaModal?.classList.contains('open')) {
+        stravaModal.classList.remove('open');
+        return;
+      }
+      if (studioContainer?.classList.contains('is-focus-mode')) {
+        toggleFocusMode();
+        return;
+      }
+    }
+
+    // Ctrl+Z / Cmd+Z (Undo / Redo)
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+      return;
+    }
+
+    // Ctrl+Y (Redo)
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    // Ctrl+S or Ctrl+D (Download HD Image)
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 's' || e.key.toLowerCase() === 'd')) {
+      e.preventDefault();
+      downloadBtn?.click();
+      return;
+    }
+
+    // Single-key shortcuts below: ignore if typing in inputs
+    if (isInput) return;
+
+    if (e.key === '?') {
+      e.preventDefault();
+      toggleShortcutsModal();
+    } else if (e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      toggleFocusMode();
+    } else if (e.key.toLowerCase() === 't') {
+      e.preventDefault();
+      const transparentToggle = document.getElementById('transparentBgToggle') as HTMLInputElement | null;
+      if (transparentToggle) {
+        transparentToggle.checked = !transparentToggle.checked;
+        transparentToggle.dispatchEvent(new Event('change'));
+      }
+    } else if (['1', '2', '3', '4'].includes(e.key)) {
+      const ratioMap: Record<string, AspectRatio> = { '1': '9:16', '2': '4:5', '3': '1:1', '4': '16:9' };
+      const targetRatio = ratioMap[e.key];
+      if (targetRatio) {
+        const btn = document.querySelector<HTMLButtonElement>(`[data-ratio="${targetRatio}"]`);
+        btn?.click();
+      }
+    }
+  });
+}
+
+/**
+ * Global Drag & Drop: Drag photos, .FIT or .GPX files anywhere on the browser window
+ */
+function setupGlobalDragDrop() {
+  const overlay = document.getElementById('globalDropOverlay');
+  let dragCounter = 0;
+
+  window.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    if (overlay && e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+      overlay.style.display = 'flex';
+    }
+  });
+
+  window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0 && overlay) {
+      overlay.style.display = 'none';
+      dragCounter = 0;
+    }
+  });
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    if (overlay) overlay.style.display = 'none';
+
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.fit')) {
+      handleFitFile(file);
+    } else if (name.endsWith('.gpx')) {
+      handleGpxFile(file);
+    } else if (file.type.startsWith('image/')) {
+      handlePhotoFile(file);
+    } else {
+      showToast('Unsupported file format. Please drop .fit, .gpx, or photo files.', true);
+    }
+  });
+}
+
+/**
+ * Real-time Workout Search in Presets & Intervals List
+ */
+function setupWorkoutSearch() {
+  if (!workoutSearchInput) return;
+
+  workoutSearchInput.addEventListener('input', () => {
+    const q = workoutSearchInput.value.toLowerCase().trim();
+    const filterContainer = (container: HTMLElement | null) => {
+      if (!container) return;
+      const items = container.querySelectorAll<HTMLElement>('.activity-item');
+      items.forEach((item) => {
+        const text = item.textContent?.toLowerCase() || '';
+        item.style.display = text.includes(q) ? 'flex' : 'none';
+      });
+    };
+
+    filterContainer(viewPresets);
+    filterContainer(intervalsActivityList);
+  });
+}
+
 
 function showStravaAlert(msg: string, type: 'error' | 'success' | 'info') {
   stravaStatusAlert.style.display = 'block';
@@ -1082,7 +1730,8 @@ function setupStravaModal() {
     stravaConnectBtn.style.background = '#00ff88';
     stravaConnectBtn.style.color = '#0b0f17';
     renderPresetsList();
-    alert('Connected demo workouts! You can now customize overlays.');
+    pushHistory(true);
+    showToast('Connected demo workouts! Customize overlays below.');
   });
 }
 

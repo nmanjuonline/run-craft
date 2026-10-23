@@ -57,7 +57,23 @@ export class CanvasEngine {
 
   setImageTransform(offset: { x: number; y: number }, zoom = 1.0) {
     this.imageOffset = offset;
-    this.imageZoom = zoom;
+    this.imageZoom = Math.max(0.5, Math.min(4.0, zoom));
+  }
+
+  getImageTransform() {
+    return {
+      offset: { ...this.imageOffset },
+      zoom: this.imageZoom,
+    };
+  }
+
+  resetImageTransform() {
+    this.imageOffset = { x: 0, y: 0 };
+    this.imageZoom = 1.0;
+  }
+
+  hasImage(): boolean {
+    return this.currentImage !== null;
   }
 
   render(activity: WorkoutActivity, config: OverlayConfig) {
@@ -1332,6 +1348,14 @@ export class CanvasEngine {
   // ============================================================
   private renderPolaroid(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     const ctx = this.ctx;
+    const margin = w * 0.08;
+    const frameL = margin;
+    const frameT = h * 0.06;
+    const photoW = w - margin * 2;
+    const photoH = photoW;
+    const frameB = h * 0.28;
+    const photoX = frameL;
+    const photoY = frameT;
 
     if (!config.transparentBackground) {
       // Off-white vintage paper background

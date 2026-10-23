@@ -2074,4 +2074,378 @@ input[type="range"]::-webkit-slider-thumb {
   font-weight: 700;
 }
 
+/* ==========================================================================
+   Advanced UX Enhancements: Controls, Shortcuts, Zoom, Focus Mode
+   ========================================================================== */
+
+/* Navbar Center Actions (Undo / Redo, Focus Mode, Shortcuts) */
+.nav-center-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-btn-group {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.btn-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-nav-icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.btn-nav-icon:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.btn-nav-icon.active {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--accent-cyan);
+}
+
+@media (max-width: 768px) {
+  .nav-center-actions {
+    display: none;
+  }
+}
+
+/* Canvas Toolbar & Zoom Controls */
+.canvas-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-zoom-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 2px 4px;
+  gap: 2px;
+  margin-left: 6px;
+}
+
+.btn-zoom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.btn-zoom:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.btn-zoom-readout {
+  background: transparent;
+  border: none;
+  color: var(--accent-lime);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-zoom-readout:hover {
+  background: rgba(200, 255, 0, 0.16);
+}
+
+/* Subtle Canvas Pan Helper Hint */
+.canvas-pan-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(11, 15, 23, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  pointer-events: none;
+  opacity: 0.85;
+  transition: opacity 0.3s ease;
+  z-index: 5;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.canvas-wrapper:hover .canvas-pan-hint {
+  opacity: 1;
+}
+
+.canvas-wrapper.is-panning {
+  cursor: grabbing !important;
+}
+
+#overlayCanvas {
+  cursor: grab;
+}
+
+#overlayCanvas:active {
+  cursor: grabbing;
+}
+
+/* Zen / Focus Full Canvas Mode */
+@media (min-width: 992px) {
+  .studio-container.is-focus-mode {
+    grid-template-columns: 1fr !important;
+  }
+  .studio-container.is-focus-mode .panel-left,
+  .studio-container.is-focus-mode .panel-right {
+    display: none !important;
+  }
+  .studio-container.is-focus-mode .viewport-center {
+    grid-column: 1 / -1 !important;
+    padding: 16px;
+  }
+  .studio-container.is-focus-mode #overlayCanvas {
+    max-height: calc(100vh - 120px) !important;
+  }
+  .studio-container.is-focus-mode .canvas-wrapper {
+    max-height: calc(100vh - 120px) !important;
+  }
+}
+
+/* Real-time Workout Filter Search Box */
+.workout-search-container {
+  width: 100%;
+}
+
+.workout-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  margin-bottom: 0;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.workout-search-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+  outline: none;
+}
+
+/* Section Title Action (Reset button alignment) */
+.section-title-action {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-micro-action {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-micro-action:hover {
+  background: rgba(200, 255, 0, 0.15);
+  border-color: var(--accent-lime);
+  color: var(--accent-lime);
+}
+
+/* Custom Color Picker in Palette Row */
+.color-picker-label {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  background: conic-gradient(from 0deg, #ff0055, #ffcc00, #00ff66, #00ffff, #0066ff, #cc00ff, #ff0055);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.color-picker-label:hover {
+  transform: scale(1.18);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+}
+
+.color-picker-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.color-picker-icon {
+  font-size: 11px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+/* Global Drag & Drop Overlay */
+.global-drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 15, 23, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: fadeInBanner 0.2s ease-out;
+}
+
+.drop-overlay-box {
+  background: rgba(24, 34, 52, 0.95);
+  border: 2px dashed var(--accent-cyan);
+  border-radius: var(--radius-lg);
+  padding: 36px 48px;
+  text-align: center;
+  max-width: 500px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 240, 255, 0.3);
+}
+
+.drop-overlay-icon {
+  font-size: 54px;
+  margin-bottom: 14px;
+  animation: bounceDrop 0.9s infinite alternate ease-in-out;
+}
+
+@keyframes bounceDrop {
+  from { transform: translateY(0); }
+  to { transform: translateY(-10px); }
+}
+
+.drop-overlay-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.drop-overlay-desc {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Shortcuts Dialog Styling */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 14px 0;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 3px 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-lime);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(200, 255, 0, 0.35);
+  border-radius: 4px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+  line-height: 1;
+}
+
+.shortcut-action {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 12.5px;
+}
+
+.shortcut-tip-box {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: rgba(200, 255, 0, 0.06);
+  border: 1px solid rgba(200, 255, 0, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Accessible focus rings */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible,
+.segment-btn:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
 

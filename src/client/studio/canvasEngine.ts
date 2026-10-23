@@ -716,20 +716,33 @@ export class CanvasEngine {
       ctx.strokeRect(w * 0.18, h * 0.28, w * 0.64, h * 0.30);
     }
 
-    // 8. Hero Stat (Distance or fallback metric)
-    const heroBoxW = w * 0.88;
-    const heroBoxH = h * 0.13;
-    const heroBoxX = (w - heroBoxW) / 2;
-    const heroBoxY = showSecondary ? h * 0.68 : h * 0.78;
+    // 8. Cyber Telemetry Console (Unified Non-Overlapping Cockpit Deck)
+    const hasHrZones = Boolean(config.showHrZones && activity.hrZones && activity.hrZones.length > 0);
+    const showConsole = showHero || (showSecondary && metricsList.length > 0);
+    const consoleW = w * 0.90;
+    const consoleX = (w - consoleW) / 2;
+    const minDim = Math.min(w, h);
 
-    if (showHero) {
-      // Chamfered cyber card for hero distance
+    // Height and Y position adapt dynamically to ensure zero overlap with HR zones or Watermark
+    let consoleH: number;
+    let consoleY: number;
+
+    if (hasHrZones) {
+      consoleH = Math.max(Math.round(h * 0.13), Math.round(w * 0.135));
+      consoleY = h * 0.66;
+    } else {
+      consoleH = Math.max(Math.round(h * 0.155), Math.round(w * 0.16));
+      consoleY = h * 0.72;
+    }
+
+    if (showConsole) {
+      // Chamfered Cyber Console Plate
       ctx.fillStyle = `rgba(10, 14, 28, ${0.85 * cardAlpha})`;
       ctx.strokeStyle = activeColor;
       ctx.lineWidth = 2;
       ctx.shadowColor = activeColor;
       ctx.shadowBlur = 16;
-      this.drawChamferCard(ctx, heroBoxX, heroBoxY, heroBoxW, heroBoxH, 16);
+      this.drawChamferCard(ctx, consoleX, consoleY, consoleW, consoleH, 16);
       ctx.fill();
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -738,144 +751,227 @@ export class CanvasEngine {
       ctx.fillStyle = activeColor;
       ctx.shadowColor = activeColor;
       ctx.shadowBlur = 10;
-      ctx.fillRect(heroBoxX + 24, heroBoxY, heroBoxW - 48, 2.5);
+      ctx.fillRect(consoleX + 24, consoleY, consoleW - 48, 2.5);
       ctx.shadowBlur = 0;
 
-      // Hero label
-      ctx.textAlign = 'left';
-      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.fillText('// TELEMETRY: DISTANCE //', heroBoxX + 22, heroBoxY + heroBoxH * 0.32);
+      if (showHero && showSecondary && metricsList.length > 0) {
+        // -------------------------------------------------------------
+        // COMBINED LAYOUT: Hero Distance Left (44%) | Metrics Grid Right (56%)
+        // -------------------------------------------------------------
+        const heroW = Math.round(consoleW * 0.44);
+        const gridW = consoleW - heroW;
+        const gridX = consoleX + heroW;
 
-      // Hero numbers
-      ctx.font = `900 ${Math.round(w * 0.092)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = activeColor;
-      ctx.shadowBlur = 18;
-      ctx.fillText(distKm, heroBoxX + 20, heroBoxY + heroBoxH * 0.84);
-      ctx.shadowBlur = 0;
+        // Vertical divider line between hero and secondary metrics
+        ctx.strokeStyle = `${activeColor}33`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(gridX, consoleY + consoleH * 0.15);
+        ctx.lineTo(gridX, consoleY + consoleH * 0.85);
+        ctx.stroke();
 
-      const numWidth = ctx.measureText(distKm).width;
-      ctx.font = `800 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = activeColor;
-      ctx.shadowColor = activeColor;
-      ctx.shadowBlur = 10;
-      ctx.fillText('KM', heroBoxX + 28 + numWidth, heroBoxY + heroBoxH * 0.82);
-      ctx.shadowBlur = 0;
-
-      // Right decorative high-tech bars
-      const barX = heroBoxX + heroBoxW - 32;
-      for (let b = 0; b < 4; b++) {
-        ctx.fillStyle = b === 3 ? `${activeColor}44` : activeColor;
-        ctx.fillRect(barX - b * 10, heroBoxY + heroBoxH * 0.44, 5, heroBoxH * 0.38);
-      }
-    } else if (config.showHeroStats !== false && metricsList.length > 0) {
-      const fallback = metricsList[0];
-      ctx.fillStyle = `rgba(10, 14, 28, ${0.85 * cardAlpha})`;
-      ctx.strokeStyle = activeColor;
-      ctx.lineWidth = 2;
-      ctx.shadowColor = activeColor;
-      ctx.shadowBlur = 14;
-      this.drawChamferCard(ctx, heroBoxX, heroBoxY, heroBoxW, heroBoxH, 16);
-      ctx.fill();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      ctx.textAlign = 'left';
-      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.fillText(`// TELEMETRY: ${fallback.label} //`, heroBoxX + 22, heroBoxY + heroBoxH * 0.32);
-
-      ctx.font = `900 ${Math.round(w * 0.088)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = activeColor;
-      ctx.shadowBlur = 16;
-      ctx.fillText(fallback.val, heroBoxX + 20, heroBoxY + heroBoxH * 0.84);
-      ctx.shadowBlur = 0;
-
-      if (fallback.unit) {
-        const numWidth = ctx.measureText(fallback.val).width;
-        ctx.font = `800 ${Math.round(w * 0.034)}px "JetBrains Mono", monospace`;
+        // Neon decorative dots along the divider
         ctx.fillStyle = activeColor;
-        ctx.fillText(fallback.unit, heroBoxX + 28 + numWidth, heroBoxY + heroBoxH * 0.82);
+        ctx.fillRect(gridX - 1.5, consoleY + consoleH * 0.18, 3, 3);
+        ctx.fillRect(gridX - 1.5, consoleY + consoleH * 0.82, 3, 3);
+
+        // Left Side: Hero Distance Readout
+        ctx.textAlign = 'left';
+        ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillText('// TELEMETRY: DISTANCE //', consoleX + 20, consoleY + consoleH * 0.28);
+
+        const heroFontSize = Math.min(Math.round(consoleH * 0.52), Math.round(heroW * 0.32));
+        ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = activeColor;
+        ctx.shadowBlur = 16;
+        const heroValY = consoleY + consoleH * 0.78;
+        ctx.fillText(distKm, consoleX + 20, heroValY);
+        ctx.shadowBlur = 0;
+
+        const numWidth = ctx.measureText(distKm).width;
+        ctx.font = `800 ${Math.max(13, Math.round(heroFontSize * 0.42))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = activeColor;
+        ctx.fillText('KM', consoleX + 26 + numWidth, heroValY);
+
+        // Right Side: Secondary Metrics Micro-Grid (2 rows x 2 cols or 3 cols)
+        const cellCount = Math.min(metricsList.length, 4);
+        const cols = cellCount <= 2 ? cellCount : 2;
+        const rows = Math.ceil(cellCount / cols);
+        const colW = (gridW - 32) / cols;
+        const rowH = (consoleH * 0.72) / rows;
+        const startGridY = consoleY + consoleH * 0.18;
+
+        metricsList.slice(0, 4).forEach((m, idx) => {
+          const colIdx = idx % cols;
+          const rowIdx = Math.floor(idx / cols);
+          const cellX = gridX + 16 + colIdx * colW;
+          const cellY = startGridY + rowIdx * rowH;
+
+          // Label
+          ctx.textAlign = 'left';
+          ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
+          ctx.fillText(m.label, cellX, cellY + rowH * 0.34);
+
+          // Value + Unit
+          const valFontSize = Math.min(Math.round(rowH * 0.46), Math.round(colW * 0.22));
+          ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          const valText = m.val;
+          ctx.fillText(valText, cellX, cellY + rowH * 0.84);
+
+          if (m.unit) {
+            const vW = ctx.measureText(valText).width;
+            ctx.font = `600 ${Math.max(9, Math.round(valFontSize * 0.58))}px "JetBrains Mono", monospace`;
+            ctx.fillStyle = activeColor;
+            ctx.fillText(m.unit, cellX + vW + 4, cellY + rowH * 0.84);
+          }
+        });
+
+      } else if (showHero) {
+        // -------------------------------------------------------------
+        // ONLY HERO DISTANCE: Centered with cyber brackets & audio bars
+        // -------------------------------------------------------------
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.016))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillText('// PRIMARY TELEMETRY: DISTANCE //', w / 2, consoleY + consoleH * 0.28);
+
+        const heroFontSize = Math.min(Math.round(consoleH * 0.52), Math.round(consoleW * 0.22));
+        ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = activeColor;
+        ctx.shadowBlur = 18;
+        const heroValY = consoleY + consoleH * 0.78;
+        ctx.fillText(`${distKm} KM`, w / 2, heroValY);
+        ctx.shadowBlur = 0;
+
+        // Flanking cyber bars on left and right
+        const drawBars = (startX: number, step: number) => {
+          for (let b = 0; b < 4; b++) {
+            ctx.fillStyle = b === 3 ? `${activeColor}44` : activeColor;
+            ctx.fillRect(startX + b * step, consoleY + consoleH * 0.38, 4, consoleH * 0.38);
+          }
+        };
+        drawBars(consoleX + 24, 10);
+        drawBars(consoleX + consoleW - 54, 10);
+
+      } else if (showSecondary && metricsList.length > 0) {
+        // -------------------------------------------------------------
+        // ONLY SECONDARY METRICS: Full-width columns across console
+        // -------------------------------------------------------------
+        const colCount = Math.min(metricsList.length, 5);
+        const colW = (consoleW - 32) / colCount;
+
+        metricsList.slice(0, colCount).forEach((m, idx) => {
+          const cx = consoleX + 16 + colIdx * colW + colW / 2;
+
+          if (idx > 0) {
+            ctx.strokeStyle = `${activeColor}22`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(consoleX + 16 + idx * colW, consoleY + consoleH * 0.2);
+            ctx.lineTo(consoleX + 16 + idx * colW, consoleY + consoleH * 0.8);
+            ctx.stroke();
+          }
+
+          ctx.textAlign = 'center';
+          ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.fillText(m.label, cx, consoleY + consoleH * 0.35);
+
+          const valFontSize = Math.min(Math.round(consoleH * 0.38), Math.round(colW * 0.24));
+          ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          const unitText = m.unit ? ' ' + m.unit : '';
+          const fullText = m.val + unitText;
+          ctx.fillText(fullText, cx, consoleY + consoleH * 0.78);
+        });
       }
     }
 
-    // 9. Secondary Metrics Cyber Telemetry Dock
-    if (showSecondary && metricsList.length > 0) {
-      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
-      const dockW = heroBoxW;
-      const dockX = heroBoxX;
-      const dockY = showHero ? h * 0.83 : h * 0.85;
+    // 9. Dedicated Cyber Heart Rate Zones Card (Zero Overlap Guaranteed!)
+    if (hasHrZones) {
+      const hrCardW = consoleW;
+      const hrCardX = consoleX;
+      const hrCardY = showConsole
+        ? consoleY + consoleH + Math.max(12, Math.round(h * 0.016))
+        : h * 0.76;
+      const hrCardH = Math.max(Math.round(h * 0.082), Math.round(w * 0.085));
 
-      ctx.fillStyle = `rgba(12, 16, 30, ${0.78 * cardAlpha})`;
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.28)';
+      // Chamfered Cyber HR Card
+      ctx.fillStyle = `rgba(10, 14, 28, ${0.82 * cardAlpha})`;
+      ctx.strokeStyle = `${secondaryNeon}66`;
       ctx.lineWidth = 1.5;
-      this.roundRect(ctx, dockX, dockY, dockW, dockH, 12);
+      ctx.shadowColor = secondaryNeon;
+      ctx.shadowBlur = 10;
+      this.drawChamferCard(ctx, hrCardX, hrCardY, hrCardW, hrCardH, 12);
       ctx.fill();
       ctx.stroke();
+      ctx.shadowBlur = 0;
 
-      const colW = dockW / metricsList.length;
-      const minDim = Math.min(w, h);
-      const labelFontSize = Math.max(10, Math.round(minDim * 0.015));
-      const baseValFontSize = Math.min(Math.round(minDim * 0.036), Math.round(colW * 0.17));
+      // HR Header line
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = secondaryNeon;
+      ctx.fillText('// BIOMETRICS: HEART RATE ZONES //', hrCardX + 18, hrCardY + hrCardH * 0.28);
 
-      metricsList.forEach((m, i) => {
-        const cx = dockX + colW * i + colW / 2;
-
-        if (i < metricsList.length - 1) {
-          ctx.strokeStyle = `${activeColor}22`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(dockX + colW * (i + 1), dockY + dockH * 0.2);
-          ctx.lineTo(dockX + colW * (i + 1), dockY + dockH * 0.8);
-          ctx.stroke();
-        }
-
-        ctx.textAlign = 'center';
-        ctx.font = `700 ${labelFontSize}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.fillText(m.label, cx, dockY + dockH * 0.35);
-
-        let curValSize = baseValFontSize;
-        let curUnitSize = Math.max(9, Math.round(curValSize * 0.52));
-        const unitText = m.unit ? ' ' + m.unit : '';
-
-        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
-        let valW = ctx.measureText(m.val).width;
-        ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
-        let unitW = unitText ? ctx.measureText(unitText).width : 0;
-        let totalW = valW + unitW;
-
-        if (totalW > colW * 0.84) {
-          const scale = (colW * 0.84) / totalW;
-          curValSize = Math.max(11, Math.floor(curValSize * scale));
-          curUnitSize = Math.max(8, Math.floor(curUnitSize * scale));
-          ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
-          valW = ctx.measureText(m.val).width;
-        }
-
-        const startX = cx - (valW + unitW) / 2;
-        const valY = dockY + dockH * 0.76;
-
-        ctx.textAlign = 'left';
-        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+      if (activity.avgHeartRate) {
+        ctx.textAlign = 'right';
+        ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(m.val, startX, valY);
+        const hrSummary = `AVG: ${activity.avgHeartRate} BPM${activity.maxHeartRate ? ` • MAX: ${activity.maxHeartRate} BPM` : ''}`;
+        ctx.fillText(hrSummary, hrCardX + hrCardW - 18, hrCardY + hrCardH * 0.28);
+      }
 
-        if (unitText) {
-          ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
-          ctx.fillStyle = activeColor;
-          ctx.fillText(unitText, startX + valW, valY);
+      // 5-Zone Colored Bar
+      const barX = hrCardX + 18;
+      const barW = hrCardW - 36;
+      const barY = hrCardY + hrCardH * 0.44;
+      const barH = Math.max(12, Math.round(hrCardH * 0.18));
+      const zones = activity.hrZones || [];
+
+      // Background trough
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      this.roundRect(ctx, barX, barY, barW, barH, barH / 2);
+      ctx.fill();
+
+      // Cyber zone colors: cyan -> green -> yellow -> orange -> neon red/magenta
+      const cyberZoneColors = ['#00f0ff', '#00ff88', '#ffe600', '#ff7700', '#ff0055'];
+      let curSegX = barX;
+
+      zones.forEach((z, i) => {
+        const segW = Math.max(0, (z.percent / 100) * barW);
+        if (segW <= 0) return;
+
+        ctx.fillStyle = cyberZoneColors[i % cyberZoneColors.length];
+        if (i === 0 && zones.every((_, idx) => idx === 0 || zones[idx].percent === 0)) {
+          this.roundRect(ctx, curSegX, barY, segW, barH, barH / 2);
+        } else if (i === 0) {
+          this.roundRect(ctx, curSegX, barY, segW, barH, { tl: barH / 2, bl: barH / 2, tr: 0, br: 0 });
+        } else if (i === zones.length - 1) {
+          this.roundRect(ctx, curSegX, barY, segW, barH, { tl: 0, bl: 0, tr: barH / 2, br: barH / 2 });
+        } else {
+          ctx.fillRect(curSegX, barY, segW, barH);
         }
+        ctx.fill();
+        curSegX += segW;
+      });
+
+      // Bottom Zone Percentage Readouts (Z1 → Z5)
+      const colSegW = barW / Math.min(zones.length, 5);
+      zones.slice(0, 5).forEach((z, i) => {
+        const lx = barX + colSegW * i + colSegW / 2;
+        ctx.textAlign = 'center';
+        ctx.font = `600 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = cyberZoneColors[i % cyberZoneColors.length];
+        ctx.fillText(`Z${z.zone} ${Math.round(z.percent)}%`, lx, hrCardY + hrCardH * 0.86);
       });
     }
 
-    // 10. Heart Rate Zones & Watermark
-    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
-      this.drawHrZones(activity, w, h, config);
-    }
-
+    // 10. Watermark Branding Badge
     if (config.showWatermark) {
       this.drawWatermark(w, h, config);
     }

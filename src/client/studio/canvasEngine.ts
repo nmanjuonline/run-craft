@@ -1303,61 +1303,7 @@ export class CanvasEngine {
     }
 
     if (config.showWatermark) {
-      const splitFontSize = Math.max(13, Math.round(w * 0.02));
-      ctx.font = `800 ${splitFontSize}px "JetBrains Mono", monospace`;
-
-      const bolt = '⚡ ';
-      const isDefault =
-        !config.watermarkText ||
-        config.watermarkText === 'Crafted with RunCraft' ||
-        config.watermarkText.toUpperCase().includes('RUNCRAFT');
-      const bText = isDefault ? 'RUN·CRAFT' : config.watermarkText;
-      const bTextW = ctx.measureText(bolt + bText).width;
-
-      const padX = Math.round(splitFontSize * 0.85);
-      const padY = Math.round(splitFontSize * 0.38);
-      const pillW = bTextW + padX * 2;
-      const pillH = splitFontSize + padY * 2;
-      const pillX = w - margin - pillW;
-      const pillY = Math.round(h - h * 0.045 - pillH / 2);
-
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = 'rgba(12, 16, 26, 0.88)';
-      this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
-      ctx.fill();
-
-      ctx.shadowColor = activeColor;
-      ctx.shadowBlur = 6;
-      ctx.strokeStyle = `${activeColor}66`;
-      ctx.lineWidth = 1.2;
-      this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
-      ctx.stroke();
-
-      ctx.shadowBlur = 0;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-
-      let curX = pillX + padX;
-      ctx.fillStyle = activeColor;
-      ctx.fillText(bolt, curX, pillY + pillH / 2 + 1);
-      curX += ctx.measureText(bolt).width;
-
-      if (isDefault) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText('RUN', curX, pillY + pillH / 2 + 1);
-        curX += ctx.measureText('RUN').width;
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.fillText('·', curX, pillY + pillH / 2 + 1);
-        curX += ctx.measureText('·').width;
-
-        ctx.fillStyle = activeColor;
-        ctx.fillText('CRAFT', curX, pillY + pillH / 2 + 1);
-      } else {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(bText, curX, pillY + pillH / 2 + 1);
-      }
+      this.drawWatermark(w, h, config);
     }
 
     ctx.restore();
@@ -1534,48 +1480,17 @@ export class CanvasEngine {
     const meta = [activity.date, activity.locationCity].filter(Boolean).join('  —  ');
     ctx.font = `500 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
     ctx.fillStyle = 'rgba(42,32,21,0.42)';
-    ctx.fillText(meta, captionCX, captionY + h * 0.152);
+    ctx.fillText(meta, captionCX, captionY + h * 0.138);
 
     // Accent color dot
     ctx.fillStyle = config.accentColor === '#ffffff' ? '#c8ff00' : config.accentColor;
     ctx.beginPath();
-    ctx.arc(captionCX - w * 0.14, captionY + h * 0.152, 5, 0, Math.PI * 2);
+    ctx.arc(captionCX - w * 0.14, captionY + h * 0.138, 5, 0, Math.PI * 2);
     ctx.fill();
 
     if (config.showWatermark) {
-      const pWatermarkY = captionY + h * 0.185;
-      const pFontSize = Math.max(13, Math.round(w * 0.022));
-      ctx.font = `800 ${pFontSize}px "JetBrains Mono", monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      const bolt = '⚡ ';
-      const isDefault =
-        !config.watermarkText ||
-        config.watermarkText === 'Crafted with RunCraft' ||
-        config.watermarkText.toUpperCase().includes('RUNCRAFT');
-
-      const pBoltW = ctx.measureText(bolt).width;
-      const pText1 = isDefault ? 'RUN' : config.watermarkText;
-      const pText2 = isDefault ? '·CRAFT' : '';
-      const pW1 = ctx.measureText(pText1).width;
-      const pW2 = isDefault ? ctx.measureText(pText2).width : 0;
-      const pTotalW = pBoltW + pW1 + pW2;
-
-      let pCurX = captionCX - pTotalW / 2;
-
-      ctx.fillStyle = config.accentColor === '#ffffff' ? '#00b462' : config.accentColor;
-      ctx.fillText(bolt, pCurX + pBoltW / 2, pWatermarkY);
-      pCurX += pBoltW;
-
-      ctx.fillStyle = 'rgba(16, 22, 34, 0.90)';
-      ctx.fillText(pText1, pCurX + pW1 / 2, pWatermarkY);
-      pCurX += pW1;
-
-      if (isDefault) {
-        ctx.fillStyle = config.accentColor === '#ffffff' ? '#008a4b' : config.accentColor;
-        ctx.fillText(pText2, pCurX + pW2 / 2, pWatermarkY);
-      }
+      const pWatermarkY = Math.round(captionY + h * 0.165);
+      this.drawWatermark(w, h, config, pWatermarkY);
     }
 
     ctx.restore();

@@ -81,23 +81,68 @@ intervalsRouter.get('/activities', async (req, _env, _params, url) => {
     const pastDate = new Date(Date.now() - daysToFetch * 86400 * 1000).toISOString().split('T')[0];
     const activitiesUrl = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${pastDate}&newest=${today}`;
 
-    const res = await fetch(activitiesUrl, {
-      headers: {
-        Authorization: getBasicAuthHeader(apiKey),
-        Accept: 'application/json',
-      },
-    });
+    // Fetch activities and athlete gear list in parallel
+    const [activitiesRes, gearRes] = await Promise.all([
+      fetch(activitiesUrl, {
+        headers: {
+          Authorization: getBasicAuthHeader(apiKey),
+          Accept: 'application/json',
+        },
+      }),
+      fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/gear`, {
+        headers: {
+          Authorization: getBasicAuthHeader(apiKey),
+          Accept: 'application/json',
+        },
+      }).catch(() => null),
+    ]);
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[Intervals.icu Activities Error] status=${res.status}:`, errText);
+    if (!activitiesRes.ok) {
+      const errText = await activitiesRes.text();
+      console.error(`[Intervals.icu Activities Error] status=${activitiesRes.status}:`, errText);
       return Router.json(
         { error: `Failed to fetch activities for athlete ${athleteId}`, details: errText },
-        { status: res.status }
+        { status: activitiesRes.status }
       );
     }
 
-    const rawActivities: any[] = await res.json();
+    // Build gear map from athlete profile and dedicated /gear endpoint
+    const gearMap = new Map<string, string>();
+    const athleteGears: Array<{ id: string; name: string; type?: string }> = [];
+
+    const rawGearList: any[] = [];
+    if (Array.isArray(athlete.gear)) rawGearList.push(...athlete.gear);
+    if (Array.isArray(athlete.shoes)) rawGearList.push(...athlete.shoes);
+    if (Array.isArray(athlete.bikes)) rawGearList.push(...athlete.bikes);
+    if (gearRes && gearRes.ok) {
+      try {
+        const gData = await gearRes.json();
+        if (Array.isArray(gData)) rawGearList.push(...gData);
+        else if (gData && Array.isArray(gData.gear)) rawGearList.push(...gData.gear);
+      } catch {}
+    }
+
+    for (const g of rawGearList) {
+      if (!g) continue;
+      const name = g.name || [g.brand, g.model].filter(Boolean).join(' ') || undefined;
+      if (name) {
+        const idStr = String(g.id ?? g.icu_id ?? '');
+        if (idStr) {
+          gearMap.set(idStr, name);
+          if (!isNaN(Number(idStr))) {
+            gearMap.set(String(Number(idStr)), name);
+          }
+        }
+        if (g.icu_id) gearMap.set(String(g.icu_id), name);
+        if (g.external_id) gearMap.set(String(g.external_id), name);
+        if (!athleteGears.some((ag) => ag.name === name)) {
+          athleteGears.push({ id: idStr, name, type: g.type });
+        }
+      }
+    }
+    console.log(`[Intervals.icu Gear] Resolved ${gearMap.size} gears for athlete ${athleteId}`);
+
+    const rawActivities: any[] = await activitiesRes.json();
     const activities: WorkoutActivity[] = rawActivities.map((act) => {
       const distanceMeters = Math.round(act.distance || 0);
       const movingTimeSec = Math.round(act.moving_time || act.elapsed_time || 0);
@@ -172,7 +217,27 @@ intervalsRouter.get('/activities', async (req, _env, _params, url) => {
         avgCadence: act.average_cadence ? Math.round(act.average_cadence * (sportType === 'Run' ? 2 : 1)) : undefined,
         avgPowerWatts: act.average_watts ? Math.round(act.average_watts) : undefined,
         calories: act.calories ? Math.round(act.calories) : undefined,
-        gearName: act.gear?.name || undefined,
+        gearName: (() => {
+          if (act.gear && typeof act.gear === 'object' && act.gear.name) return act.gear.name;
+          if (act.gear_name && typeof act.gear_name === 'string') return act.gear_name;
+          if (act.gear_id !== undefined && gearMap.has(String(act.gear_id))) return gearMap.get(String(act.gear_id));
+          if (act.icu_gear_id !== undefined && gearMap.has(String(act.icu_gear_id))) return gearMap.get(String(act.icu_gear_id));
+          if (act.gear !== undefined && gearMap.has(String(act.gear))) return gearMap.get(String(act.gear));
+          if (Array.isArray(act.gear_ids) && act.gear_ids.length > 0) {
+            const names = act.gear_ids.map((id: any) => gearMap.get(String(id))).filter(Boolean);
+            if (names.length > 0) return names.join(' • ');
+          }
+          if (Array.isArray(act.icu_gear_ids) && act.icu_gear_ids.length > 0) {
+            const names = act.icu_gear_ids.map((id: any) => gearMap.get(String(id))).filter(Boolean);
+            if (names.length > 0) return names.join(' • ');
+          }
+          for (const [k, v] of Object.entries(act)) {
+            if (/gear|shoe|bike/i.test(k) && typeof v === 'string' && gearMap.has(v)) {
+              return gearMap.get(v);
+            }
+          }
+          return undefined;
+        })(),
         points: [],
         splits,
         hrZones,
@@ -193,6 +258,7 @@ intervalsRouter.get('/activities', async (req, _env, _params, url) => {
         id: athlete.id,
         name: athlete.name || athlete.firstname || 'Garmin Athlete',
       },
+      gears: athleteGears,
       count: activities.length,
       days: daysToFetch,
     });
@@ -325,16 +391,38 @@ intervalsRouter.get('/activities/:id/streams', async (req, _env, params, url) =>
   const streamsUrl = `https://intervals.icu/api/v1/activity/${cleanId}/streams.json?types=latlng,altitude,fixed_altitude,heartrate,distance,velocity_smooth,time`;
 
   try {
-    const res = await fetch(streamsUrl, {
-      headers: {
-        Authorization: getBasicAuthHeader(apiKey),
-        Accept: 'application/json',
-      },
-    });
+    const [res, detailRes] = await Promise.all([
+      fetch(streamsUrl, {
+        headers: {
+          Authorization: getBasicAuthHeader(apiKey),
+          Accept: 'application/json',
+        },
+      }),
+      fetch(`https://intervals.icu/api/v1/activity/${cleanId}`, {
+        headers: {
+          Authorization: getBasicAuthHeader(apiKey),
+          Accept: 'application/json',
+        },
+      }).catch(() => null),
+    ]);
 
     if (!res.ok) {
       console.warn(`[Intervals Streams] HTTP ${res.status} for activity ${cleanId}`);
       return Router.json({ error: 'Streams not available for this activity', status: res.status }, { status: res.status });
+    }
+
+    let detailGearName: string | undefined = undefined;
+    let detailCity: string | undefined = undefined;
+    if (detailRes && detailRes.ok) {
+      try {
+        const detail = await detailRes.json();
+        if (detail.gear && typeof detail.gear === 'object' && detail.gear.name) {
+          detailGearName = detail.gear.name;
+        } else if (detail.gear_name) {
+          detailGearName = detail.gear_name;
+        }
+        detailCity = detail.location_city || detail.city || detail.location || undefined;
+      } catch {}
     }
 
     const streams: any[] = await res.json();
@@ -421,7 +509,13 @@ intervalsRouter.get('/activities/:id/streams', async (req, _env, params, url) =>
       pointsCount: points.length,
     });
 
-    return Router.json({ points, splits, elevationGainMeters });
+    return Router.json({
+      points,
+      splits,
+      elevationGainMeters,
+      gearName: detailGearName,
+      locationCity: detailCity,
+    });
   } catch (err: any) {
     return Router.json({ error: 'Failed to fetch streams', details: err.message }, { status: 500 });
   }

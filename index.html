@@ -586,6 +586,110 @@
             Aesthetics & Theme
           </div>
 
+          <!-- Layout Template Picker -->
+          <div class="card-glass" style="margin-bottom: 10px;">
+            <div class="control-label" style="margin-bottom: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 800; color: var(--text-muted);">Layout Template</div>
+            <div class="layout-template-grid" id="layoutTemplateGrid">
+
+              <button class="layout-template-card active" data-layout="classic">
+                <div class="ltc-preview ltc-classic">
+                  <div class="ltc-pill"></div>
+                  <div class="ltc-route"></div>
+                  <div class="ltc-stats-bar"></div>
+                  <div class="ltc-zones-bar"></div>
+                </div>
+                <div class="ltc-label">Classic</div>
+                <div class="ltc-desc">Route center · Stats bottom</div>
+              </button>
+
+              <button class="layout-template-card" data-layout="cinematic">
+                <div class="ltc-preview ltc-cinematic">
+                  <div class="ltc-scrim-btm"></div>
+                  <div class="ltc-big-num">21</div>
+                  <div class="ltc-stats-pill"></div>
+                </div>
+                <div class="ltc-label">Cinematic</div>
+                <div class="ltc-desc">Huge hero stat · Film scrim</div>
+              </button>
+
+              <button class="layout-template-card" data-layout="swiss-grid">
+                <div class="ltc-preview ltc-swiss">
+                  <div class="ltc-accent-bar"></div>
+                  <div class="ltc-swiss-num">21</div>
+                  <div class="ltc-swiss-lines">
+                    <div></div><div></div><div></div>
+                  </div>
+                </div>
+                <div class="ltc-label">Swiss Grid</div>
+                <div class="ltc-desc">Typography · Data table</div>
+              </button>
+
+              <button class="layout-template-card" data-layout="neon-cyber">
+                <div class="ltc-preview ltc-cyber">
+                  <div class="ltc-grid-lines"></div>
+                  <div class="ltc-neon-route"></div>
+                  <div class="ltc-cyber-panel"></div>
+                </div>
+                <div class="ltc-label">Neon Cyber</div>
+                <div class="ltc-desc">Scanlines · Glowing stats</div>
+              </button>
+
+              <button class="layout-template-card" data-layout="split-story">
+                <div class="ltc-preview ltc-split">
+                  <div class="ltc-split-photo"></div>
+                  <div class="ltc-split-accent"></div>
+                  <div class="ltc-split-stats">
+                    <div class="ltc-split-grid">
+                      <div></div><div></div><div></div><div></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="ltc-label">Split Story</div>
+                <div class="ltc-desc">Photo top · Stats card bottom</div>
+              </button>
+
+              <button class="layout-template-card" data-layout="polaroid">
+                <div class="ltc-preview ltc-polaroid-outer">
+                  <div class="ltc-polaroid-frame">
+                    <div class="ltc-polaroid-photo"></div>
+                    <div class="ltc-polaroid-caption">
+                      <div></div><div></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="ltc-label">Polaroid</div>
+                <div class="ltc-desc">White frame · Vintage film</div>
+              </button>
+
+              <button class="layout-template-card" data-layout="generative" id="generativeLayoutCard">
+                <div class="ltc-preview ltc-generative">
+                  <div class="ltc-gen-bg"></div>
+                  <div class="ltc-gen-sparkle">✨</div>
+                  <div class="ltc-gen-dice">🎲</div>
+                  <div class="ltc-gen-pill">AI REMIX</div>
+                </div>
+                <div class="ltc-label">Generative</div>
+                <div class="ltc-desc">Random layouts on the fly</div>
+              </button>
+
+            </div>
+
+            <!-- Generative Controls Bar (visible when generative template is active) -->
+            <div id="generativeControlBar" class="generative-shuffle-bar" style="display: none;">
+              <div class="gen-info-row">
+                <div class="gen-title">
+                  <span class="gen-pulse-dot"></span>
+                  <span>Procedural Engine</span>
+                </div>
+                <span id="genArchetypeLabel" class="gen-archetype-pill">Editorial Magazine</span>
+              </div>
+              <button id="remixLayoutBtn" type="button" class="btn btn-primary remix-btn">
+                <span class="remix-dice">🎲</span>
+                <span>Roll Another Layout (Shuffle)</span>
+              </button>
+            </div>
+          </div>
+
           <div class="card-glass">
             <div class="control-label" style="margin-bottom: 6px;">Accent Color</div>
             <div class="palette-row">
@@ -611,6 +715,7 @@
             </div>
           </div>
         </section>
+
 
         <!-- Section: Overlay Layer Toggles -->
         <section class="studio-section" data-section="widgets">
@@ -701,7 +806,9 @@
             </div>
 
             <label class="control-label" style="display: block; margin-bottom: 4px;">City / Gear / Shoe</label>
-            <input type="text" id="editLocationInput" class="input-field" value="Marin County, CA • Salomon S/Lab" />
+            <input type="text" id="editLocationInput" class="input-field" list="gearSuggestions" value="Marin County, CA • Salomon S/Lab" placeholder="e.g. Marin County, CA • Salomon S/Lab" />
+            <datalist id="gearSuggestions"></datalist>
+            <div id="gearQuickChips" class="gear-chips-row"></div>
           </div>
         </section>
       </aside>

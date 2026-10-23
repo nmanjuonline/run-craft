@@ -80,6 +80,16 @@ export type AspectRatio = '9:16' | '4:5' | '1:1' | '16:9';
 export type OverlayThemeId = 'glass-dark' | 'glass-light' | 'neon-cyber' | 'swiss-minimal' | 'retro-lcd';
 export type RouteColorMode = 'solid' | 'elevation' | 'pace' | 'heartrate';
 
+/** Visual layout / composition template for the canvas overlay */
+export type OverlayLayoutId =
+  | 'classic'      // Default: title top, route center, stats bottom
+  | 'cinematic'    // Full-bleed photo, hero distance huge center, minimal bottom strip
+  | 'swiss-grid'   // Swiss typography: big number left, data table right
+  | 'neon-cyber'   // Neon glow-heavy, dark base, stats pill across center
+  | 'split-story'  // 9:16 split: photo upper half, solid stats card lower half
+  | 'polaroid'     // White-border frame, vintage film aesthetic
+  | 'generative';  // Procedural dynamic remix: generates random layouts on the fly
+
 export interface PhotoFilterSettings {
   brightness: number; // 0.5 to 1.5, default 1.0
   contrast: number; // 0.5 to 1.5, default 1.0
@@ -107,6 +117,7 @@ export interface MetricVisibilityConfig {
 }
 
 export interface OverlayConfig {
+  layoutId: OverlayLayoutId;
   aspectRatio: AspectRatio;
   theme: OverlayThemeId;
   accentColor: string;
@@ -123,6 +134,7 @@ export interface OverlayConfig {
   showWatermark: boolean;
   watermarkText: string;
   cardOpacity: number; // 0.1 to 1.0
+  generativeSeed?: number; // Seed for procedural generative layout
   photoFilters: PhotoFilterSettings;
   metrics: MetricVisibilityConfig;
   positions: {

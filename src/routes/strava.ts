@@ -147,6 +147,27 @@ stravaRouter.get('/activities', async (req, env, _params, url) => {
     );
   }
 
+  // Fetch athlete profile to resolve gear IDs to shoe/bike names
+  const gearMap = new Map<string, string>();
+  const athleteGears: Array<{ id: string; name: string }> = [];
+  try {
+    const athleteRes = await fetch('https://www.strava.com/api/v3/athlete', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (athleteRes.ok) {
+      const athleteData = await athleteRes.json();
+      const allGear = [...(athleteData.shoes || []), ...(athleteData.bikes || [])];
+      for (const g of allGear) {
+        if (g && g.id && g.name) {
+          gearMap.set(String(g.id), g.name);
+          athleteGears.push({ id: String(g.id), name: g.name });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Strava Athlete Gear Fetch Error]', err);
+  }
+
   const rawActivities: any[] = await stravaRes.json();
   const normalized: WorkoutActivity[] = rawActivities.map((act) => {
     const distanceMeters = Math.round(act.distance || 0);
@@ -164,6 +185,8 @@ stravaRouter.get('/activities', async (req, env, _params, url) => {
       act.type === 'Ride' ? 'Ride' :
       act.type === 'Hike' ? 'Hike' :
       act.type === 'TrailRun' ? 'TrailRun' : 'Run';
+
+    const gearName = act.gear_id ? gearMap.get(String(act.gear_id)) : (act.gear?.name || undefined);
 
     return {
       id: `strava_${act.id}`,
@@ -183,6 +206,7 @@ stravaRouter.get('/activities', async (req, env, _params, url) => {
       avgPowerWatts: act.average_watts ? Math.round(act.average_watts) : undefined,
       calories: act.kilojoules ? Math.round(act.kilojoules * 0.239) : undefined,
       locationCity: act.location_city || undefined,
+      gearName,
       polyline: act.map?.summary_polyline,
       points,
       splits: [],
@@ -191,5 +215,5 @@ stravaRouter.get('/activities', async (req, env, _params, url) => {
     };
   });
 
-  return Router.json({ activities: normalized });
+  return Router.json({ activities: normalized, gears: athleteGears });
 });

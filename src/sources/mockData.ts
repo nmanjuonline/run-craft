@@ -53,7 +53,7 @@ export const MOCK_ACTIVITIES: WorkoutActivity[] = [
     locationCity: 'Marin County, CA',
     weatherTempC: 14,
     weatherCondition: 'Cool & Misty',
-    gearName: 'Salomon S/Lab Genesis',
+    gearName: 'Salomon S/Lab',
     source: 'mock',
     points: generateArcTrack(37.832, -122.525, 120, 3.8, 180, 240),
     splits: [

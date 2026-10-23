@@ -38,6 +38,7 @@ export const CONFIG = {
     ASPECT_RATIO: '9:16' as const,
     WATERMARK: 'Crafted with RunCraft',
     DEFAULT_OVERLAY_CONFIG: {
+      layoutId: 'classic' as const,
       aspectRatio: '9:16' as const,
       theme: 'glass-dark' as const,
       accentColor: '#c8ff00',

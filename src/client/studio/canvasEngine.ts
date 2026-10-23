@@ -27,7 +27,7 @@ function formatPace(secPerKm: number): string {
   return `${mins}'${secs.toString().padStart(2, '0')}"`;
 }
 
-function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
@@ -35,6 +35,24 @@ function formatDuration(seconds: number): string {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+export function isStrengthOrGymActivity(activity: WorkoutActivity): boolean {
+  const sport = (activity.sportType || '').toLowerCase();
+  const title = (activity.title || '').toLowerCase();
+  return (
+    sport.includes('weight') ||
+    sport.includes('strength') ||
+    sport.includes('gym') ||
+    sport.includes('crossfit') ||
+    sport.includes('hiit') ||
+    sport.includes('pilates') ||
+    sport.includes('yoga') ||
+    sport.includes('workout') ||
+    sport.includes('training') ||
+    sport.includes('cardio') ||
+    (activity.distanceMeters === 0 && (!activity.points || activity.points.length === 0))
+  );
 }
 
 export class CanvasEngine {
@@ -111,6 +129,15 @@ export class CanvasEngine {
       case 'nordic-minimal':
         this.renderNordicMinimal(activity, config, dim.width, dim.height);
         break;
+      case 'iron-strength':
+        this.renderIronStrength(activity, config, dim.width, dim.height);
+        break;
+      case 'crossfit-wod':
+        this.renderCrossfitWod(activity, config, dim.width, dim.height);
+        break;
+      case 'athletic-club':
+        this.renderAthleticClub(activity, config, dim.width, dim.height);
+        break;
 
       case 'classic':
       default:
@@ -127,9 +154,11 @@ export class CanvasEngine {
     this.drawBackground(w, h, config);
     // 2. Vignette and Atmosphere
     this.drawAtmosphere(w, h, config);
-    // 3. GPS Route Polyline
+    // 3. GPS Route Polyline OR Gym Intensity Visual
     if (config.showPolyline && activity.points && activity.points.length > 1) {
       this.drawRoutePolyline(activity.points, w, h, config);
+    } else if (config.showPolyline && isStrengthOrGymActivity(activity)) {
+      this.drawGymIntensityVisual(activity, w, h, config);
     }
     // 4. Header / Activity Title Card
     if (config.showTitleHeader) {
@@ -220,38 +249,70 @@ export class CanvasEngine {
       distance: true, time: true, pace: true, elevation: true,
       heartRate: true, cadence: true, calories: true, power: true,
     };
-    const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
+    const isGym = isStrengthOrGymActivity(activity);
+    const showHero = config.showHeroStats !== false && (isGym || metricsConfig.distance !== false);
 
     if (showHero) {
-      // BIG central distance hero
-      const distKm = (activity.distanceMeters / 1000).toFixed(2);
-      const bigFontSize = Math.round(w * 0.22);
-      ctx.font = `900 ${bigFontSize}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = config.accentColor;
-      ctx.textAlign = 'left';
-      ctx.shadowColor = config.accentColor;
-      ctx.shadowBlur = 40;
-      ctx.globalAlpha = 0.15;
-      ctx.fillText(distKm, w * 0.03, h * 0.62);
-      ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
+      if (!isGym) {
+        // BIG central distance hero
+        const distKm = (activity.distanceMeters / 1000).toFixed(2);
+        const bigFontSize = Math.round(w * 0.22);
+        ctx.font = `900 ${bigFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = config.accentColor;
+        ctx.textAlign = 'left';
+        ctx.shadowColor = config.accentColor;
+        ctx.shadowBlur = 40;
+        ctx.globalAlpha = 0.15;
+        ctx.fillText(distKm, w * 0.03, h * 0.62);
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
 
-      // Distance label
-      ctx.font = `800 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.textAlign = 'left';
-      ctx.fillText('DISTANCE', w * 0.06, h * 0.58);
+        // Distance label
+        ctx.font = `800 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.textAlign = 'left';
+        ctx.fillText('DISTANCE', w * 0.06, h * 0.58);
 
-      ctx.font = `900 ${Math.round(w * 0.17)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(0,0,0,0.9)';
-      ctx.shadowBlur = 30;
-      ctx.fillText(distKm, w * 0.06, h * 0.72);
+        ctx.font = `900 ${Math.round(w * 0.17)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.9)';
+        ctx.shadowBlur = 30;
+        ctx.fillText(distKm, w * 0.06, h * 0.72);
 
-      ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = config.accentColor;
-      ctx.shadowBlur = 0;
-      ctx.fillText('KM', w * 0.06, h * 0.755);
+        ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = config.accentColor;
+        ctx.shadowBlur = 0;
+        ctx.fillText('KM', w * 0.06, h * 0.755);
+      } else {
+        // GYM / STRENGTH HERO: DURATION
+        const durStr = formatDuration(activity.movingTimeSec || activity.elapsedTimeSec || 3600);
+        const bigFontSize = Math.round(w * 0.16);
+        ctx.font = `900 ${bigFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = config.accentColor;
+        ctx.textAlign = 'left';
+        ctx.shadowColor = config.accentColor;
+        ctx.shadowBlur = 35;
+        ctx.globalAlpha = 0.15;
+        ctx.fillText(durStr, w * 0.03, h * 0.62);
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        ctx.font = `800 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.textAlign = 'left';
+        ctx.fillText('DURATION', w * 0.06, h * 0.58);
+
+        ctx.font = `900 ${Math.round(w * 0.14)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.9)';
+        ctx.shadowBlur = 30;
+        ctx.fillText(durStr, w * 0.06, h * 0.72);
+
+        ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = config.accentColor;
+        ctx.shadowBlur = 0;
+        ctx.fillText('TIME', w * 0.06, h * 0.755);
+      }
     }
 
     // Ensure accurate elevation gain
@@ -268,25 +329,37 @@ export class CanvasEngine {
     const showSecondary = config.showSecondaryStats !== false;
     const metricsToShow: Array<{ label: string; val: string; unit: string }> = [];
     if (showSecondary) {
-      if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
-        metricsToShow.push({ label: 'DIST', val: (activity.distanceMeters / 1000).toFixed(2), unit: 'km' });
-      }
-      if (metricsConfig.pace !== false) {
-        metricsToShow.push({ label: 'PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km' });
-      }
-      if (metricsConfig.time !== false) {
-        metricsToShow.push({ label: 'TIME', val: formatDuration(activity.movingTimeSec), unit: '' });
-      }
-      if (metricsConfig.elevation !== false && eleGain > 0) {
-        metricsToShow.push({ label: 'ELEV', val: `+${Math.round(eleGain)}`, unit: 'm' });
+      if (!isGym) {
+        if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+          metricsToShow.push({ label: 'DIST', val: (activity.distanceMeters / 1000).toFixed(2), unit: 'km' });
+        }
+        if (metricsConfig.pace !== false) {
+          metricsToShow.push({ label: 'PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km' });
+        }
+        if (metricsConfig.time !== false) {
+          metricsToShow.push({ label: 'TIME', val: formatDuration(activity.movingTimeSec), unit: '' });
+        }
+        if (metricsConfig.elevation !== false && eleGain > 0) {
+          metricsToShow.push({ label: 'ELEV', val: `+${Math.round(eleGain)}`, unit: 'm' });
+        }
+      } else {
+        if (activity.calories) {
+          metricsToShow.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
+        }
+        if (activity.totalSets) {
+          metricsToShow.push({ label: 'SETS', val: `${activity.totalSets}`, unit: 'sets' });
+        }
       }
       if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
         metricsToShow.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
       }
-      if (metricsConfig.cadence && activity.avgCadence) {
+      if (isGym && activity.maxHeartRate) {
+        metricsToShow.push({ label: 'MAX HR', val: `${activity.maxHeartRate}`, unit: 'bpm' });
+      }
+      if (!isGym && metricsConfig.cadence && activity.avgCadence) {
         metricsToShow.push({ label: 'CADENCE', val: `${activity.avgCadence}`, unit: 'spm' });
       }
-      if (metricsConfig.calories && activity.calories) {
+      if (!isGym && metricsConfig.calories && activity.calories) {
         metricsToShow.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
       }
       if (metricsConfig.power && activity.avgPowerWatts) {
@@ -1548,6 +1621,8 @@ export class CanvasEngine {
       power: true,
     };
 
+    const isGym = isStrengthOrGymActivity(activity);
+
     let eleGain = activity.elevationGainMeters;
     if ((eleGain === undefined || eleGain === 0) && activity.points && activity.points.length > 1) {
       const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
@@ -1557,41 +1632,60 @@ export class CanvasEngine {
       }
     }
 
-    const distKm = (activity.distanceMeters / 1000).toFixed(2);
+    const distKm = isGym
+      ? formatDuration(activity.movingTimeSec || activity.elapsedTimeSec || 3600)
+      : (activity.distanceMeters / 1000).toFixed(2);
     const paceStr = formatPace(activity.avgPaceSecPerKm);
-    const timeStr = formatDuration(activity.movingTimeSec);
+    const timeStr = formatDuration(activity.movingTimeSec || activity.elapsedTimeSec || 3600);
     const eleStr = eleGain > 0 ? `+${Math.round(eleGain)}` : '0';
     const hrStr = activity.avgHeartRate ? `${activity.avgHeartRate}` : '—';
 
-    const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
+    const showHero = config.showHeroStats !== false && (isGym || metricsConfig.distance !== false);
 
     const metricsList: Array<{ label: string; val: string; unit: string }> = [];
-    if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
-      metricsList.push({ label: 'DIST', val: distKm, unit: 'km' });
-    }
-    if (metricsConfig.pace !== false) {
-      metricsList.push({ label: 'PACE', val: paceStr, unit: '/km' });
-    }
-    if (metricsConfig.time !== false) {
-      metricsList.push({ label: 'TIME', val: timeStr, unit: '' });
-    }
-    if (metricsConfig.elevation !== false && eleGain > 0) {
-      metricsList.push({ label: 'ELEV', val: eleStr, unit: 'm' });
-    }
-    if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
-      metricsList.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
-    }
-    if (metricsConfig.cadence && activity.avgCadence) {
-      metricsList.push({ label: 'CADENCE', val: `${activity.avgCadence}`, unit: 'spm' });
-    }
-    if (metricsConfig.calories && activity.calories) {
-      metricsList.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
-    }
-    if (metricsConfig.power && activity.avgPowerWatts) {
-      metricsList.push({ label: 'POWER', val: `${activity.avgPowerWatts}`, unit: 'W' });
+    if (!isGym) {
+      if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+        metricsList.push({ label: 'DIST', val: distKm, unit: 'km' });
+      }
+      if (metricsConfig.pace !== false) {
+        metricsList.push({ label: 'PACE', val: paceStr, unit: '/km' });
+      }
+      if (metricsConfig.time !== false) {
+        metricsList.push({ label: 'TIME', val: timeStr, unit: '' });
+      }
+      if (metricsConfig.elevation !== false && eleGain > 0) {
+        metricsList.push({ label: 'ELEV', val: eleStr, unit: 'm' });
+      }
+      if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+        metricsList.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
+      }
+      if (metricsConfig.cadence && activity.avgCadence) {
+        metricsList.push({ label: 'CADENCE', val: `${activity.avgCadence}`, unit: 'spm' });
+      }
+      if (metricsConfig.calories && activity.calories) {
+        metricsList.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
+      }
+      if (metricsConfig.power && activity.avgPowerWatts) {
+        metricsList.push({ label: 'POWER', val: `${activity.avgPowerWatts}`, unit: 'W' });
+      }
+    } else {
+      if (activity.calories) {
+        metricsList.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
+      }
+      if (activity.avgHeartRate) {
+        metricsList.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
+      }
+      if (activity.maxHeartRate) {
+        metricsList.push({ label: 'PEAK HR', val: `${activity.maxHeartRate}`, unit: 'bpm' });
+      }
+      if (activity.totalSets) {
+        metricsList.push({ label: 'SETS', val: `${activity.totalSets}`, unit: 'sets' });
+      } else if (activity.totalVolumeKg) {
+        metricsList.push({ label: 'VOLUME', val: `${activity.totalVolumeKg}`, unit: 'kg' });
+      }
     }
 
-    let coordStr = '37.832°N  122.525°W';
+    let coordStr = isGym ? (activity.locationCity ? activity.locationCity.toUpperCase() : 'GYM // INDOOR SESSION') : '37.832°N  122.525°W';
     if (activity.points && activity.points.length > 0) {
       const p = activity.points[0];
       coordStr = `${Math.abs(p.lat).toFixed(3)}°${p.lat >= 0 ? 'N' : 'S'}  ${Math.abs(p.lon).toFixed(3)}°${p.lon >= 0 ? 'E' : 'W'}`;
@@ -1602,6 +1696,7 @@ export class CanvasEngine {
 
     return {
       distKm,
+      isGym,
       paceStr,
       timeStr,
       eleStr,
@@ -2464,7 +2559,7 @@ export class CanvasEngine {
   // ============================================================
   private renderEditorialHeritage(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     const ctx = this.ctx;
-    const { distKm, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
+    const { distKm, isGym, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
     const activeColor = config.accentColor || '#c8ff00';
     const minDim = Math.min(w, h);
 
@@ -2571,7 +2666,7 @@ export class CanvasEngine {
       // Horizontal classical flanking rules
       const heroY = btmAreaY;
       ctx.font = `700 ${heroNumSize}px "Playfair Display", "Georgia", serif`;
-      const distNumText = `${distKm} KM`;
+      const distNumText = isGym ? distKm : `${distKm} KM`;
       const numW = ctx.measureText(distNumText).width;
 
       const ruleW = Math.max(24, Math.round((w * 0.75 - numW) / 2));
@@ -2664,7 +2759,7 @@ export class CanvasEngine {
   // ============================================================
   private renderSummitTopo(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     const ctx = this.ctx;
-    const { distKm, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
+    const { distKm, isGym, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
     const activeColor = config.accentColor || '#ff6b00';
     const minDim = Math.min(w, h);
     const margin = w * 0.055;
@@ -2903,7 +2998,7 @@ export class CanvasEngine {
   // ============================================================
   private renderNordicMinimal(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     const ctx = this.ctx;
-    const { distKm, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
+    const { distKm, isGym, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
     const activeColor = config.accentColor || '#ffffff';
     const minDim = Math.min(w, h);
     const margin = w * 0.06;
@@ -2958,7 +3053,7 @@ export class CanvasEngine {
       }
     }
 
-    // 4. GPS Route Polyline: delicate hairline route
+    // 4. GPS Route Polyline: delicate hairline route OR Gym Intensity Visual
     if (config.showPolyline && activity.points && activity.points.length > 1) {
       const routeConfig = {
         ...config,
@@ -2968,6 +3063,8 @@ export class CanvasEngine {
         },
       };
       this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    } else if (config.showPolyline && isGym) {
+      this.drawGymIntensityVisual(activity, w, h, config);
     }
 
     // 5. Hero Distance Numeral (Modernist stark typography)
@@ -2983,9 +3080,11 @@ export class CanvasEngine {
       ctx.shadowBlur = 0;
 
       const numW = ctx.measureText(distKm).width;
-      ctx.font = `700 ${Math.round(heroSize * 0.28)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = activeColor;
-      ctx.fillText('KM', margin + numW + 10, btmY);
+      if (!isGym) {
+        ctx.font = `700 ${Math.round(heroSize * 0.28)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = activeColor;
+        ctx.fillText('KM', margin + numW + 10, btmY);
+      }
 
       // Subtle hairline underline
       ctx.strokeStyle = `${activeColor}44`;
@@ -3043,4 +3142,553 @@ export class CanvasEngine {
 
     ctx.restore();
   }
+
+  // ============================================================
+  // GYM & STRENGTH INTENSITY TELEMETRY VISUAL
+  // Renders animated-feel dual intensity rings & heartbeat ECG pulse
+  // ============================================================
+  private drawGymIntensityVisual(activity: WorkoutActivity, w: number, h: number, config: OverlayConfig) {
+    const ctx = this.ctx;
+    ctx.save();
+
+    const cx = w * 0.5;
+    const cy = h * 0.44;
+    const minDim = Math.min(w, h);
+    const radius = minDim * 0.20;
+    const accent = config.accentColor || '#c8ff00';
+
+    // 1. Subtle glowing background circular halo
+    const glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.5);
+    glowGrad.addColorStop(0, `${accent}22`);
+    glowGrad.addColorStop(0.5, `${accent}08`);
+    glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glowGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Dual Concentric Intensity Arcs
+    // Outer arc: Session Time / Energy Arc
+    ctx.lineWidth = Math.max(3, Math.round(minDim * 0.012));
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const startAngle = -Math.PI / 2;
+    const pct = Math.min(1.0, Math.max(0.35, (activity.movingTimeSec || 3600) / 3600));
+    const endAngle = startAngle + pct * Math.PI * 2;
+
+    ctx.strokeStyle = accent;
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = config.showGlow !== false ? 18 : 0;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, startAngle, endAngle);
+    ctx.stroke();
+
+    // End indicator dot
+    const dotX = cx + Math.cos(endAngle) * radius;
+    const dotY = cy + Math.sin(endAngle) * radius;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, Math.max(4, Math.round(minDim * 0.014)), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner Arc: Heart Rate Intensity Arc
+    const innerRadius = radius * 0.74;
+    ctx.lineWidth = Math.max(2.5, Math.round(minDim * 0.009));
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const hrPct = Math.min(1.0, Math.max(0.4, ((activity.avgHeartRate || 135) - 60) / 130));
+    const hrEndAngle = startAngle + hrPct * Math.PI * 2;
+    ctx.strokeStyle = '#00f0ff';
+    ctx.shadowColor = '#00f0ff';
+    ctx.shadowBlur = config.showGlow !== false ? 12 : 0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerRadius, startAngle, hrEndAngle);
+    ctx.stroke();
+
+    // 3. Heart Rate Pulse Waveform traversing center
+    ctx.shadowBlur = 0;
+    const waveW = radius * 1.35;
+    const waveY = cy;
+    const leftX = cx - waveW / 2;
+    const rightX = cx + waveW / 2;
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = Math.max(2, Math.round(minDim * 0.006));
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(leftX, waveY);
+    ctx.lineTo(leftX + waveW * 0.22, waveY);
+    ctx.lineTo(leftX + waveW * 0.32, waveY - radius * 0.18);
+    ctx.lineTo(leftX + waveW * 0.40, waveY + radius * 0.22);
+    ctx.lineTo(leftX + waveW * 0.48, waveY - radius * 0.38);
+    ctx.lineTo(leftX + waveW * 0.56, waveY + radius * 0.26);
+    ctx.lineTo(leftX + waveW * 0.64, waveY - radius * 0.12);
+    ctx.lineTo(leftX + waveW * 0.74, waveY);
+    ctx.lineTo(rightX, waveY);
+    ctx.stroke();
+
+    // 4. Center Glyphs & Telemetry Badges
+    ctx.font = `800 ${Math.max(10, Math.round(minDim * 0.016))}px "JetBrains Mono", monospace`;
+    ctx.fillStyle = accent;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${(activity.sportType || 'STRENGTH').toUpperCase()}`, cx, cy - radius * 0.35);
+
+    if (activity.avgHeartRate) {
+      ctx.font = `800 ${Math.max(11, Math.round(minDim * 0.018))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`⚡ ${activity.avgHeartRate} BPM`, cx, cy + radius * 0.42);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 10: IRON STRENGTH
+  // Heavyweight industrial aesthetic with power telemetry & set matrix
+  // ============================================================
+  private renderIronStrength(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { timeStr, hrStr, showHero, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#c8ff00';
+    const minDim = Math.min(w, h);
+    const margin = w * 0.06;
+
+    // 1. Background Photo with deep contrast & dark vignette
+    this.drawBackground(w, h, config);
+    this.drawAtmosphere(w, h, config);
+
+    if (!config.transparentBackground) {
+      // Dark bottom letterbox gradient
+      const btmGrad = ctx.createLinearGradient(0, h * 0.45, 0, h);
+      btmGrad.addColorStop(0, 'rgba(11, 15, 23, 0)');
+      btmGrad.addColorStop(0.35, 'rgba(11, 15, 23, 0.75)');
+      btmGrad.addColorStop(1, 'rgba(11, 15, 23, 0.96)');
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.45, w, h * 0.55);
+
+      // Subtle top scrim
+      const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.26);
+      topGrad.addColorStop(0, 'rgba(11, 15, 23, 0.85)');
+      topGrad.addColorStop(1, 'rgba(11, 15, 23, 0)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, w, h * 0.26);
+    }
+
+    ctx.save();
+
+    // 2. Header: Industrial Brutalist Badge
+    if (config.showTitleHeader) {
+      const badgeY = h * 0.065;
+      ctx.textAlign = 'left';
+      ctx.font = `800 ${Math.max(9.5, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 10;
+      ctx.fillText(`[ IRON CRAFT // HEAVY SESSION ]`, margin, badgeY);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `900 ${Math.max(20, Math.round(w * 0.062))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.95)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.118);
+      ctx.shadowBlur = 0;
+
+      const subStr = [activity.locationCity || 'POWERHOUSE GYM', activity.date].join('  •  ');
+      ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.fillText(subStr, margin, h * 0.148);
+    }
+
+    // 3. Centerpiece Visual: Gym Intensity Rings & Pulse (or route if points exist)
+    if (config.showPolyline) {
+      if (activity.points && activity.points.length > 1) {
+        this.drawRoutePolyline(activity.points, w, h, config);
+      } else {
+        this.drawGymIntensityVisual(activity, w, h, config);
+      }
+    }
+
+    // 4. Massive Power Hero: Time Under Tension (Duration)
+    const heroY = h * 0.69;
+    if (showHero) {
+      const heroSize = Math.max(34, Math.min(Math.round(h * 0.12), Math.round(w * 0.19)));
+      ctx.textAlign = 'left';
+
+      // Small upper kicker
+      ctx.font = `800 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText('TIME UNDER TENSION', margin, heroY - heroSize * 0.72);
+
+      // Main big number
+      ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 22;
+      ctx.fillText(timeStr, margin, heroY);
+      ctx.shadowBlur = 0;
+
+      // Unit tag
+      const numW = ctx.measureText(timeStr).width;
+      ctx.font = `800 ${Math.round(heroSize * 0.26)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('ELAPSED', margin + numW + 12, heroY);
+    }
+
+    // 5. Secondary High-Contrast Metallic Cards
+    if (config.showSecondaryStats !== false) {
+      const cardY = showHero ? h * 0.73 : h * 0.62;
+      const cardW = w - margin * 2;
+      const cardH = Math.max(48, Math.round(minDim * 0.088));
+
+      // 4 High-impact telemetry metrics
+      const ironMetrics: Array<{ label: string; val: string; icon: string }> = [];
+      if (activity.calories) ironMetrics.push({ label: 'ENERGY', val: `${activity.calories} kcal`, icon: '🔥' });
+      if (activity.avgHeartRate) ironMetrics.push({ label: 'AVG HR', val: `${activity.avgHeartRate} bpm`, icon: '⚡' });
+      if (activity.maxHeartRate) ironMetrics.push({ label: 'PEAK HR', val: `${activity.maxHeartRate} bpm`, icon: '💥' });
+      if (activity.totalSets) {
+        ironMetrics.push({ label: 'SETS', val: `${activity.totalSets}`, icon: '🏋️' });
+      } else if (activity.totalVolumeKg) {
+        ironMetrics.push({ label: 'VOLUME', val: `${activity.totalVolumeKg} kg`, icon: '⚖️' });
+      } else {
+        ironMetrics.push({ label: 'INTENSITY', val: 'HIGH', icon: '⚡' });
+      }
+
+      const count = Math.min(ironMetrics.length, 4);
+      const colW = (cardW - (count - 1) * 8) / count;
+
+      ironMetrics.slice(0, count).forEach((m, idx) => {
+        const itemX = margin + idx * (colW + 8);
+        ctx.fillStyle = `rgba(18, 24, 38, ${cardAlpha})`;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, itemX, cardY, colW, cardH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        // Top specular hairline
+        ctx.strokeStyle = `${activeColor}44`;
+        ctx.beginPath();
+        ctx.moveTo(itemX + 8, cardY + 1);
+        ctx.lineTo(itemX + colW - 8, cardY + 1);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.0135))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillText(`${m.icon} ${m.label}`, itemX + colW / 2, cardY + cardH * 0.38);
+
+        ctx.font = `800 ${Math.max(12, Math.round(minDim * 0.022))}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(m.val, itemX + colW / 2, cardY + cardH * 0.78);
+      });
+    }
+
+    // 6. Bottom Heart Rate Zones Breakdown Bar
+    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
+      this.drawHrZones(activity, w, h, config);
+    }
+
+    // 7. Watermark
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 11: CROSSFIT WOD
+  // High-intensity functional fitness, digital stopwatch HUD & pulse
+  // ============================================================
+  private renderCrossfitWod(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { timeStr, showHero, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#c8ff00';
+    const minDim = Math.min(w, h);
+    const margin = w * 0.06;
+
+    this.drawBackground(w, h, config);
+    this.drawAtmosphere(w, h, config);
+
+    if (!config.transparentBackground) {
+      // Dark HUD scrims
+      const btmGrad = ctx.createLinearGradient(0, h * 0.4, 0, h);
+      btmGrad.addColorStop(0, 'rgba(5, 7, 12, 0)');
+      btmGrad.addColorStop(0.4, 'rgba(5, 7, 12, 0.78)');
+      btmGrad.addColorStop(1, 'rgba(5, 7, 12, 0.98)');
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.4, w, h * 0.6);
+
+      const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.28);
+      topGrad.addColorStop(0, 'rgba(5, 7, 12, 0.88)');
+      topGrad.addColorStop(1, 'rgba(5, 7, 12, 0)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, w, h * 0.28);
+    }
+
+    ctx.save();
+
+    // 1. Top Header: Digital Timer Category
+    if (config.showTitleHeader) {
+      ctx.textAlign = 'left';
+      ctx.font = `800 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = '#ff5500';
+      ctx.shadowColor = '#ff5500';
+      ctx.shadowBlur = 10;
+      ctx.fillText(`⚡ WOD COMPLETED // FOR TIME`, margin, h * 0.065);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `900 ${Math.max(20, Math.round(w * 0.065))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.118);
+
+      const boxLoc = activity.locationCity || 'FUNCTIONAL ARENA';
+      ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`BOX: ${boxLoc.toUpperCase()}  //  ${activity.date}`, margin, h * 0.148);
+    }
+
+    // 2. Centerpiece: Dynamic Gym Intensity Visual
+    if (config.showPolyline) {
+      if (activity.points && activity.points.length > 1) {
+        this.drawRoutePolyline(activity.points, w, h, config);
+      } else {
+        this.drawGymIntensityVisual(activity, w, h, config);
+      }
+    }
+
+    // 3. Digital Stopwatch Frame & Hero Timer
+    if (showHero) {
+      const timerW = w - margin * 2;
+      const timerH = Math.max(76, Math.round(h * 0.115));
+      const timerY = h * 0.65;
+
+      // Dark digital bezel
+      ctx.fillStyle = `rgba(10, 14, 22, ${cardAlpha})`;
+      ctx.strokeStyle = 'rgba(255, 85, 0, 0.4)';
+      ctx.lineWidth = 1.5;
+      this.roundRect(ctx, margin, timerY, timerW, timerH, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      // Corner bracket accents
+      const bracketLen = 14;
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 2.5;
+
+      // Top-left bracket
+      ctx.beginPath();
+      ctx.moveTo(margin + 6, timerY + 6 + bracketLen);
+      ctx.lineTo(margin + 6, timerY + 6);
+      ctx.lineTo(margin + 6 + bracketLen, timerY + 6);
+      ctx.stroke();
+
+      // Bottom-right bracket
+      ctx.beginPath();
+      ctx.moveTo(margin + timerW - 6 - bracketLen, timerY + timerH - 6);
+      ctx.lineTo(margin + timerW - 6, timerY + timerH - 6);
+      ctx.lineTo(margin + timerW - 6, timerY + timerH - 6 - bracketLen);
+      ctx.stroke();
+
+      // Large digital timer numerals
+      ctx.textAlign = 'center';
+      const timerFontSize = Math.max(34, Math.min(Math.round(h * 0.08), Math.round(w * 0.145)));
+      ctx.font = `900 ${timerFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 15;
+      ctx.fillText(`${timeStr}.0`, w / 2, timerY + timerH * 0.65);
+      ctx.shadowBlur = 0;
+
+      // Small subtitle
+      ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.0135))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText('OFFICIAL METCON SPLIT', w / 2, timerY + timerH * 0.88);
+    }
+
+    // 4. Secondary Telemetry Cells
+    if (config.showSecondaryStats !== false) {
+      const statsY = showHero ? h * 0.79 : h * 0.66;
+      const statsW = w - margin * 2;
+      const statsH = Math.max(46, Math.round(minDim * 0.082));
+
+      const wodStats = [
+        { label: 'CALORIES', val: `${activity.calories || 430} kcal` },
+        { label: 'PEAK HR', val: `${activity.maxHeartRate || 182} bpm` },
+        { label: 'AVG HR', val: `${activity.avgHeartRate || 162} bpm` },
+        { label: 'INTENSITY', val: `${Math.min(98, Math.round(((activity.avgHeartRate || 160) / 190) * 100))}%` },
+      ];
+
+      const colW = (statsW - (wodStats.length - 1) * 8) / wodStats.length;
+
+      wodStats.forEach((st, idx) => {
+        const itemX = margin + idx * (colW + 8);
+        ctx.fillStyle = `rgba(15, 20, 32, ${cardAlpha})`;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, itemX, statsY, colW, statsH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${Math.max(8.5, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.fillText(st.label, itemX + colW / 2, statsY + statsH * 0.38);
+
+        ctx.font = `800 ${Math.max(11, Math.round(minDim * 0.020))}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(st.val, itemX + colW / 2, statsY + statsH * 0.78);
+      });
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 12: ATHLETIC CLUB
+  // Boutique luxury studio aesthetic (Equinox / Alo / Barry's)
+  // ============================================================
+  private renderAthleticClub(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { timeStr, showHero, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#e8dcc4';
+    const minDim = Math.min(w, h);
+    const margin = w * 0.06;
+
+    this.drawBackground(w, h, config);
+    this.drawAtmosphere(w, h, config);
+
+    if (!config.transparentBackground) {
+      const btmGrad = ctx.createLinearGradient(0, h * 0.48, 0, h);
+      btmGrad.addColorStop(0, 'rgba(10, 14, 20, 0)');
+      btmGrad.addColorStop(0.35, 'rgba(10, 14, 20, 0.65)');
+      btmGrad.addColorStop(1, 'rgba(10, 14, 20, 0.95)');
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.48, w, h * 0.52);
+    }
+
+    ctx.save();
+
+    // 1. Classical Hairline Card Frame
+    const borderInset = Math.round(w * 0.04);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(borderInset, borderInset, w - borderInset * 2, h - borderInset * 2);
+
+    // 2. Header: Luxury Club Kicker
+    if (config.showTitleHeader) {
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.letterSpacing = '2px';
+      ctx.fillText(`THE ATHLETIC CLUB • ARCHIVE`, w / 2, borderInset + Math.round(h * 0.04));
+      ctx.letterSpacing = '0px';
+
+      ctx.font = `700 ${Math.max(20, Math.round(w * 0.062))}px "Playfair Display", Georgia, serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 12;
+      ctx.fillText(activity.title, w / 2, borderInset + Math.round(h * 0.092));
+      ctx.shadowBlur = 0;
+
+      const venue = activity.locationCity ? `${activity.locationCity.toUpperCase()}  —  ${activity.date}` : activity.date;
+      ctx.font = `500 ${Math.max(9.5, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillText(venue, w / 2, borderInset + Math.round(h * 0.122));
+    }
+
+    // 3. Centerpiece: Dynamic Gym Intensity Visual
+    if (config.showPolyline) {
+      if (activity.points && activity.points.length > 1) {
+        this.drawRoutePolyline(activity.points, w, h, config);
+      } else {
+        this.drawGymIntensityVisual(activity, w, h, config);
+      }
+    }
+
+    // 4. Hero Numerals: Session Duration
+    const heroY = h * 0.72;
+    if (showHero) {
+      const heroSize = Math.max(30, Math.min(Math.round(h * 0.105), Math.round(w * 0.165)));
+      ctx.textAlign = 'center';
+      ctx.font = `800 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 16;
+      ctx.fillText(timeStr, w / 2, heroY);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('SESSION DURATION', w / 2, heroY + Math.round(heroSize * 0.32));
+    }
+
+    // 5. Minimalist Telemetry Table
+    if (config.showSecondaryStats !== false) {
+      const tableY = showHero ? h * 0.79 : h * 0.65;
+      const tableW = w - borderInset * 2 - 20;
+      const tableH = Math.max(48, Math.round(minDim * 0.078));
+      const tableX = w / 2 - tableW / 2;
+
+      ctx.fillStyle = `rgba(16, 22, 32, ${cardAlpha})`;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1;
+      this.roundRect(ctx, tableX, tableY, tableW, tableH, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      const clubStats = [
+        { label: 'ENERGY BURN', val: `${activity.calories || 485} kcal` },
+        { label: 'CARDIAC AVG', val: `${activity.avgHeartRate || 136} bpm` },
+        { label: 'ZONE PEAK', val: `${activity.maxHeartRate || 168} bpm` },
+      ];
+
+      const colW = tableW / clubStats.length;
+
+      clubStats.forEach((st, idx) => {
+        const itemCX = tableX + idx * colW + colW / 2;
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = activeColor;
+        ctx.fillText(st.label, itemCX, tableY + tableH * 0.4);
+
+        ctx.font = `700 ${Math.max(12, Math.round(minDim * 0.020))}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(st.val, itemCX, tableY + tableH * 0.78);
+
+        if (idx < clubStats.length - 1) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.beginPath();
+          ctx.moveTo(tableX + (idx + 1) * colW, tableY + 8);
+          ctx.lineTo(tableX + (idx + 1) * colW, tableY + tableH - 8);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // 6. Atelier Watermark
+    if (config.showWatermark) {
+      const wmY = borderInset + (h - borderInset * 2) - 16;
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${Math.max(9, Math.round(minDim * 0.0135))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText('RUN CRAFT ATELIER  •  ALL RIGHTS RESERVED', w / 2, wmY);
+    }
+
+    ctx.restore();
+  }
 }
+

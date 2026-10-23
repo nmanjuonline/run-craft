@@ -181,10 +181,23 @@ stravaRouter.get('/activities', async (req, env, _params, url) => {
       points = decodePolyline(act.map.summary_polyline);
     }
 
-    const sportType: ActivityType =
-      act.type === 'Ride' ? 'Ride' :
-      act.type === 'Hike' ? 'Hike' :
-      act.type === 'TrailRun' ? 'TrailRun' : 'Run';
+    const rawType = (act.type || act.sport_type || '').toLowerCase();
+    let sportType: ActivityType = 'Run';
+    if (rawType.includes('ride') || rawType.includes('cycl')) {
+      sportType = 'Ride';
+    } else if (rawType.includes('trail')) {
+      sportType = 'TrailRun';
+    } else if (rawType.includes('hike')) {
+      sportType = 'Hike';
+    } else if (rawType.includes('weight') || rawType.includes('strength')) {
+      sportType = 'WeightTraining';
+    } else if (rawType.includes('crossfit')) {
+      sportType = 'Crossfit';
+    } else if (rawType.includes('yoga') || rawType.includes('pilates')) {
+      sportType = 'Yoga';
+    } else if (rawType.includes('workout') || rawType.includes('cardio') || rawType.includes('hiit')) {
+      sportType = 'Workout';
+    }
 
     const gearName = act.gear_id ? gearMap.get(String(act.gear_id)) : (act.gear?.name || undefined);
 

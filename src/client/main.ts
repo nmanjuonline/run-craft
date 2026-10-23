@@ -3,7 +3,7 @@
  * Connects CanvasEngine, parsers, and UI controls
  */
 
-import { CanvasEngine } from './studio/canvasEngine.js';
+import { CanvasEngine, formatDuration, isStrengthOrGymActivity } from './studio/canvasEngine.js';
 import { MOCK_ACTIVITIES } from '../sources/mockData.js';
 import { parseGpxFileContent } from './parsers/gpxClientParser.js';
 import { parseFitFileBuffer } from './parsers/fitClientParser.js';
@@ -210,6 +210,33 @@ function loadBackdropImage(src: string): Promise<void> {
   });
 }
 
+export function getSportIcon(sport: string): string {
+  switch (sport) {
+    case 'Ride': return '🚴';
+    case 'TrailRun': return '⛰️';
+    case 'Hike': return '🥾';
+    case 'WeightTraining':
+    case 'Strength': return '🏋️';
+    case 'Crossfit': return '🔥';
+    case 'Yoga':
+    case 'Pilates': return '🧘';
+    case 'Workout':
+    case 'Cardio':
+    case 'HIIT': return '💪';
+    case 'Run':
+    default: return '🏃';
+  }
+}
+
+export function formatActivityMeta(act: WorkoutActivity): string {
+  if (act.distanceMeters > 0) {
+    return `${(act.distanceMeters / 1000).toFixed(1)} km • ${act.date}`;
+  }
+  const dur = formatDuration(act.movingTimeSec || act.elapsedTimeSec || 3600);
+  const calPart = act.calories ? `${act.calories} kcal • ` : '';
+  return `${dur} • ${calPart}${act.date}`;
+}
+
 function renderPresetsList() {
   viewPresets.innerHTML = '';
   MOCK_ACTIVITIES.forEach((act, idx) => {
@@ -218,9 +245,9 @@ function renderPresetsList() {
     item.innerHTML = `
       <div class="act-info">
         <h4>${act.title}</h4>
-        <div class="act-meta">${(act.distanceMeters / 1000).toFixed(1)} km • ${act.date}</div>
+        <div class="act-meta">${formatActivityMeta(act)}</div>
       </div>
-      <span class="act-badge">${act.sportType}</span>
+      <span class="act-badge">${getSportIcon(act.sportType)} ${act.sportType}</span>
     `;
     item.addEventListener('click', () => {
       document.querySelectorAll('.activity-item').forEach((el) => el.classList.remove('active'));
@@ -492,9 +519,9 @@ function addActivityToList(act: WorkoutActivity) {
   item.innerHTML = `
     <div class="act-info">
       <h4>${act.title}</h4>
-      <div class="act-meta">${(act.distanceMeters / 1000).toFixed(1)} km • ${act.date}</div>
+      <div class="act-meta">${formatActivityMeta(act)}</div>
     </div>
-    <span class="act-badge">${act.sportType}</span>
+    <span class="act-badge">${getSportIcon(act.sportType)} ${act.sportType}</span>
   `;
   document.querySelectorAll('.activity-item').forEach((el) => el.classList.remove('active'));
   item.addEventListener('click', () => {
@@ -516,7 +543,8 @@ async function handleFitFile(file: File) {
     addActivityToList(act);
     syncEditorInputs();
     triggerRender();
-    showToast(`⚡ Loaded ${(act.distanceMeters / 1000).toFixed(1)}km Garmin workout: ${act.title}`);
+    const distOrDur = act.distanceMeters > 0 ? `${(act.distanceMeters / 1000).toFixed(1)}km` : formatDuration(act.movingTimeSec || act.elapsedTimeSec || 3600);
+    showToast(`⚡ Loaded ${distOrDur} Garmin workout: ${act.title}`);
   } catch (err: any) {
     showToast(`Could not parse .FIT file: ${err.message}`, true);
   }
@@ -1621,9 +1649,9 @@ async function loadStravaActivities(token: string, silent = false): Promise<bool
       item.innerHTML = `
         <div class="act-info">
           <h4>${act.title}</h4>
-          <div class="act-meta">${(act.distanceMeters / 1000).toFixed(1)} km • ${act.date}</div>
+          <div class="act-meta">${formatActivityMeta(act)}</div>
         </div>
-        <span class="act-badge" style="background: rgba(252, 76, 2, 0.2); color: #fc4c02;">${act.sportType}</span>
+        <span class="act-badge" style="background: rgba(252, 76, 2, 0.2); color: #fc4c02;">${getSportIcon(act.sportType)} ${act.sportType}</span>
       `;
       item.addEventListener('click', () => {
         document.querySelectorAll('.activity-item').forEach((el) => el.classList.remove('active'));
@@ -1895,9 +1923,9 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
       item.innerHTML = `
         <div class="act-info">
           <h4>${act.title}</h4>
-          <div class="act-meta">${(act.distanceMeters / 1000).toFixed(1)} km • ${act.date}</div>
+          <div class="act-meta">${formatActivityMeta(act)}</div>
         </div>
-        <span class="act-badge" style="background: rgba(0, 240, 255, 0.15); color: #00f0ff;">${act.sportType}</span>
+        <span class="act-badge" style="background: rgba(0, 240, 255, 0.15); color: #00f0ff;">${getSportIcon(act.sportType)} ${act.sportType}</span>
       `;
       item.addEventListener('click', async () => {
         document.querySelectorAll('#intervalsActivityList .activity-item').forEach((el) => el.classList.remove('active'));

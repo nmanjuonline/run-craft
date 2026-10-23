@@ -75,21 +75,46 @@ export function parseFitFileBuffer(
         };
       });
 
-      const totalDistance = Math.round(session.total_distance || (points.length > 0 ? 5000 : 0));
-      const movingTimeSec = Math.round(session.total_timer_time || session.total_elapsed_time || 1800);
-      const avgPaceSec = totalDistance > 0 ? Math.round(movingTimeSec / (totalDistance / 1000)) : 0;
-      const avgHr = session.avg_heart_rate || (hrCount > 0 ? Math.round(hrSum / hrCount) : undefined);
-      maxHr = session.max_heart_rate || maxHr;
-
       let sportType: ActivityType = 'Run';
       const sportStr = (session.sport || '').toLowerCase();
+      const subSportStr = (session.sub_sport || '').toLowerCase();
+
       if (sportStr.includes('cycl') || sportStr.includes('biking')) {
         sportType = 'Ride';
       } else if (sportStr.includes('hike')) {
         sportType = 'Hike';
       } else if (sportStr.includes('trail')) {
         sportType = 'TrailRun';
+      } else if (
+        sportStr.includes('weight') ||
+        sportStr.includes('strength') ||
+        sportStr.includes('fitness_equipment') ||
+        sportStr.includes('training') ||
+        subSportStr.includes('strength') ||
+        subSportStr.includes('weight')
+      ) {
+        sportType = 'WeightTraining';
+      } else if (sportStr.includes('crossfit') || subSportStr.includes('crossfit') || subSportStr.includes('hiit')) {
+        sportType = 'Crossfit';
+      } else if (sportStr.includes('yoga') || sportStr.includes('pilates')) {
+        sportType = 'Yoga';
+      } else if (sportStr.includes('cardio') || sportStr.includes('workout')) {
+        sportType = 'Workout';
       }
+
+      const isGymSport =
+        sportType === 'WeightTraining' ||
+        sportType === 'Crossfit' ||
+        sportType === 'Workout' ||
+        sportType === 'Yoga';
+
+      const totalDistance = isGymSport
+        ? Math.round(session.total_distance || 0)
+        : Math.round(session.total_distance || (points.length > 0 ? 5000 : 0));
+      const movingTimeSec = Math.round(session.total_timer_time || session.total_elapsed_time || 1800);
+      const avgPaceSec = totalDistance > 0 ? Math.round(movingTimeSec / (totalDistance / 1000)) : 0;
+      const avgHr = session.avg_heart_rate || (hrCount > 0 ? Math.round(hrSum / hrCount) : undefined);
+      maxHr = session.max_heart_rate || maxHr;
 
       const activity: WorkoutActivity = {
         id: `fit_${Date.now()}`,

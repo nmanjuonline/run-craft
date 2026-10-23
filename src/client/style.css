@@ -1534,3 +1534,379 @@ input[type="range"]::-webkit-slider-thumb {
 .sample-thumb.active {
   border-color: var(--accent-lime);
 }
+
+/* ==========================================================================
+   Layout Template Picker
+   ========================================================================== */
+
+.layout-template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.layout-template-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px 6px 7px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-main);
+}
+
+.layout-template-card:hover {
+  border-color: rgba(200, 255, 0, 0.45);
+  background: rgba(200, 255, 0, 0.06);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(200, 255, 0, 0.12);
+}
+
+.layout-template-card.active {
+  border-color: var(--accent-lime);
+  background: rgba(200, 255, 0, 0.1);
+  box-shadow: 0 0 0 1px rgba(200, 255, 0, 0.2), 0 8px 24px rgba(200, 255, 0, 0.15);
+}
+
+.layout-template-card.active::after {
+  content: '✓';
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--accent-lime);
+  background: rgba(200, 255, 0, 0.18);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Thumbnail preview area */
+.ltc-preview {
+  width: 100%;
+  aspect-ratio: 9/16;
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+  background: #0b0f17;
+  flex-shrink: 0;
+}
+
+/* Labels */
+.ltc-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-align: center;
+  letter-spacing: 0.2px;
+  line-height: 1;
+}
+
+.ltc-desc {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ---- CLASSIC thumbnail ---- */
+.ltc-classic {
+  background: linear-gradient(160deg, #12294a 0%, #0b0f17 100%);
+}
+.ltc-classic .ltc-pill {
+  position: absolute;
+  top: 7%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 8%;
+  background: rgba(200, 255, 0, 0.18);
+  border: 1px solid rgba(200, 255, 0, 0.3);
+  border-radius: 99px;
+}
+.ltc-classic .ltc-route {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 30%;
+  border: 2.5px solid rgba(200, 255, 0, 0.6);
+  border-radius: 4px;
+  /* squiggly route feel via mask */
+  clip-path: polygon(5% 80%, 20% 20%, 35% 60%, 50% 15%, 65% 55%, 80% 25%, 95% 70%);
+  background: transparent;
+  border: none;
+  outline: 2px solid rgba(200, 255, 0, 0.75);
+  box-shadow: 0 0 8px rgba(200, 255, 0, 0.35);
+}
+.ltc-classic .ltc-stats-bar {
+  position: absolute;
+  bottom: 18%;
+  left: 7%;
+  right: 7%;
+  height: 14%;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+}
+.ltc-classic .ltc-zones-bar {
+  position: absolute;
+  bottom: 7%;
+  left: 7%;
+  right: 7%;
+  height: 7%;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.ltc-classic .ltc-zones-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8 18%, #22c55e 34%, #eab308 52%, #f97316 70%, #ef4444 100%);
+  opacity: 0.8;
+}
+
+/* ---- CINEMATIC thumbnail ---- */
+.ltc-cinematic {
+  background: linear-gradient(180deg, #1a2535 0%, #0a0c14 55%, #000000 100%);
+}
+.ltc-cinematic .ltc-scrim-btm {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 55%;
+  background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%);
+}
+.ltc-cinematic .ltc-big-num {
+  position: absolute;
+  bottom: 26%;
+  left: 8%;
+  font-size: 20px;
+  font-weight: 900;
+  color: #ffffff;
+  font-family: var(--font-main);
+  line-height: 1;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+}
+.ltc-cinematic .ltc-stats-pill {
+  position: absolute;
+  bottom: 8%;
+  left: 7%;
+  right: 7%;
+  height: 14%;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+}
+
+/* ---- SWISS GRID thumbnail ---- */
+.ltc-swiss {
+  background: linear-gradient(160deg, #0d1420 0%, #080b14 100%);
+}
+.ltc-swiss .ltc-accent-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  background: var(--accent-lime);
+}
+.ltc-swiss .ltc-swiss-num {
+  position: absolute;
+  top: 12%;
+  left: 18%;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--accent-lime);
+  font-family: var(--font-main);
+  line-height: 1;
+}
+.ltc-swiss .ltc-swiss-lines {
+  position: absolute;
+  top: 55%;
+  left: 18%;
+  right: 10%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ltc-swiss .ltc-swiss-lines > div {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 1px;
+}
+
+/* ---- NEON CYBER thumbnail ---- */
+.ltc-cyber {
+  background: linear-gradient(160deg, #060810 0%, #040608 100%);
+  position: relative;
+  overflow: hidden;
+}
+.ltc-cyber .ltc-grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(200,255,0,0.08) 0px, rgba(200,255,0,0.08) 1px, transparent 1px, transparent 14px),
+    repeating-linear-gradient(90deg, rgba(200,255,0,0.08) 0px, rgba(200,255,0,0.08) 1px, transparent 1px, transparent 14px);
+}
+.ltc-cyber .ltc-neon-route {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 65%;
+  height: 28%;
+  clip-path: polygon(5% 80%, 18% 25%, 35% 65%, 52% 18%, 68% 58%, 82% 22%, 97% 72%);
+  background: rgba(200, 255, 0, 0.6);
+  filter: blur(2px);
+  box-shadow: 0 0 12px rgba(200, 255, 0, 0.8);
+}
+.ltc-cyber .ltc-cyber-panel {
+  position: absolute;
+  bottom: 8%;
+  left: 5%;
+  right: 5%;
+  height: 22%;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--accent-lime);
+  box-shadow: 0 0 12px rgba(200, 255, 0, 0.25), inset 0 0 8px rgba(200, 255, 0, 0.05);
+  border-radius: 5px;
+}
+
+/* ---- SPLIT STORY thumbnail ---- */
+.ltc-split {
+  background: #0b0f17;
+  position: relative;
+}
+.ltc-split .ltc-split-photo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52%;
+  background: linear-gradient(160deg, #1a3a52 0%, #0d1f2e 100%);
+}
+.ltc-split .ltc-split-accent {
+  position: absolute;
+  top: 51%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-lime);
+}
+.ltc-split .ltc-split-stats {
+  position: absolute;
+  top: 54%;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #080a14;
+  padding: 6px;
+}
+.ltc-split .ltc-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  height: 100%;
+}
+.ltc-split .ltc-split-grid > div {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ---- POLAROID thumbnail ---- */
+.ltc-polaroid-outer {
+  background: #e8e2d6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ltc-polaroid-frame {
+  width: 85%;
+  height: 90%;
+  background: #ffffff;
+  border-radius: 2px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 5px 5px 0;
+  overflow: hidden;
+}
+.ltc-polaroid-photo {
+  flex: 1;
+  background: linear-gradient(135deg, #4a6fa5 0%, #2d4a72 100%);
+  border-radius: 1px;
+}
+.ltc-polaroid-caption {
+  padding: 5px 3px 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ltc-polaroid-caption > div {
+  height: 2.5px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 1px;
+}
+.ltc-polaroid-caption > div:first-child {
+  width: 80%;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* ==========================================================================
+   Gear / Shoe Quick Chips
+   ========================================================================== */
+.gear-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.gear-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.gear-chip:hover {
+  background: rgba(200, 255, 0, 0.12);
+  border-color: var(--accent-lime);
+  color: #ffffff;
+}
+.gear-chip.active {
+  background: var(--accent-lime);
+  border-color: var(--accent-lime);
+  color: #000000;
+  font-weight: 700;
+}
+
+

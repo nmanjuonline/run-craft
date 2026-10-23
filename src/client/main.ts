@@ -8,10 +8,15 @@ import { MOCK_ACTIVITIES } from '../sources/mockData.js';
 import { parseGpxFileContent } from './parsers/gpxClientParser.js';
 import { parseFitFileBuffer } from './parsers/fitClientParser.js';
 import { CONFIG } from '../config.js';
-import type { WorkoutActivity, OverlayConfig, AspectRatio } from '../types.js';
+import type { WorkoutActivity, OverlayConfig, AspectRatio, OverlayLayoutId } from '../types.js';
 
 // Application State
-let currentActivity: WorkoutActivity = { ...MOCK_ACTIVITIES[0] };
+let currentActivity: WorkoutActivity = {
+  ...MOCK_ACTIVITIES[0],
+  locationCity: MOCK_ACTIVITIES[0].gearName && !MOCK_ACTIVITIES[0].locationCity?.includes(MOCK_ACTIVITIES[0].gearName)
+    ? `${MOCK_ACTIVITIES[0].locationCity} • ${MOCK_ACTIVITIES[0].gearName}`
+    : MOCK_ACTIVITIES[0].locationCity,
+};
 let currentConfig: OverlayConfig = JSON.parse(JSON.stringify(CONFIG.DEFAULTS.DEFAULT_OVERLAY_CONFIG));
 let canvasEngine: CanvasEngine;
 
@@ -133,7 +138,9 @@ async function initApp() {
   setupToggles();
   setupAspectRatios();
   setupPalette();
+  setupLayoutTemplates();
   setupTextEditor();
+  syncEditorInputs();
   setupExport();
   setupStravaModal();
   setupIntervalsModal();
@@ -197,11 +204,24 @@ function renderPresetsList() {
   });
 }
 
+export function formatWorkoutSubtitle(act: { locationCity?: string; gearName?: string }): string {
+  const parts: string[] = [];
+  if (act.locationCity) parts.push(act.locationCity);
+  if (act.gearName && !act.locationCity?.includes(act.gearName)) {
+    parts.push(act.gearName);
+  }
+  return parts.join(' • ').trim();
+}
+
 function syncEditorInputs() {
   editTitleInput.value = currentActivity.title;
   editDistInput.value = (currentActivity.distanceMeters / 1000).toFixed(1);
   editEleInput.value = currentActivity.elevationGainMeters.toString();
-  editLocationInput.value = `${currentActivity.locationCity || ''} ${currentActivity.gearName ? `• ${currentActivity.gearName}` : ''}`.trim();
+  const subtitle = formatWorkoutSubtitle(currentActivity);
+  editLocationInput.value = subtitle;
+  if (subtitle) {
+    currentActivity.locationCity = subtitle;
+  }
 }
 
 function setupTabs() {
@@ -691,7 +711,65 @@ function setupPalette() {
   });
 }
 
+function setupLayoutTemplates() {
+  const cards = document.querySelectorAll<HTMLButtonElement>('.layout-template-card');
+  cards.forEach((card) => {
+    card.addEventListener('click', () => {
+      cards.forEach((c) => c.classList.remove('active'));
+      card.classList.add('active');
+      const layout = (card.getAttribute('data-layout') || 'classic') as OverlayLayoutId;
+      currentConfig.layoutId = layout;
+      triggerRender();
+    });
+  });
+}
+
+const availableGears: string[] = ['Salomon S/Lab', 'Nike Vaporfly 3', 'Trek Emonda SLR 9'];
+
+function updateGearSuggestions(newGears: string[]) {
+  for (const g of newGears) {
+    if (g && !availableGears.includes(g)) {
+      availableGears.push(g);
+    }
+  }
+  renderGearChips();
+}
+
+function renderGearChips() {
+  const datalist = document.getElementById('gearSuggestions') as HTMLDataListElement;
+  if (datalist) {
+    datalist.innerHTML = availableGears.map((g) => `<option value="${g}">`).join('');
+  }
+  const chipsContainer = document.getElementById('gearQuickChips');
+  if (!chipsContainer) return;
+  chipsContainer.innerHTML = '';
+  availableGears.slice(0, 8).forEach((gear) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'gear-chip';
+    chip.textContent = gear;
+    chip.addEventListener('click', () => {
+      const cur = editLocationInput.value.trim();
+      let newLocation = '';
+      if (!cur) {
+        newLocation = gear;
+      } else if (cur.includes('•')) {
+        const parts = cur.split('•').map((s) => s.trim()).filter(Boolean);
+        newLocation = `${parts[0]} • ${gear}`;
+      } else {
+        newLocation = `${cur} • ${gear}`;
+      }
+      editLocationInput.value = newLocation;
+      currentActivity.gearName = gear;
+      currentActivity.locationCity = newLocation;
+      triggerRender();
+    });
+    chipsContainer.appendChild(chip);
+  });
+}
+
 function setupTextEditor() {
+  renderGearChips();
   editTitleInput.addEventListener('input', () => {
     currentActivity.title = editTitleInput.value;
     triggerRender();
@@ -784,6 +862,10 @@ async function loadStravaActivities(token: string, silent = false): Promise<bool
 
     const data = await res.json();
     const activities: WorkoutActivity[] = data.activities || [];
+    const gears: Array<{ id: string; name: string }> = data.gears || [];
+    if (gears.length > 0) {
+      updateGearSuggestions(gears.map((g) => g.name));
+    }
 
     if (activities.length === 0) {
       if (!silent) showStravaAlert('Connected! No recent activities found on your Strava account.', 'info');
@@ -1018,6 +1100,10 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
 
     const data = await res.json();
     const activities: WorkoutActivity[] = data.activities || [];
+    const gears: Array<{ id: string; name: string }> = data.gears || [];
+    if (gears.length > 0) {
+      updateGearSuggestions(gears.map((g) => g.name));
+    }
 
     // Save API key
     localStorage.setItem('intervals_api_key', cleanKey);
@@ -1108,6 +1194,11 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
                 currentActivity.elevationGainMeters = streamData.elevationGainMeters;
                 if (editEleInput) editEleInput.value = currentActivity.elevationGainMeters.toString();
               }
+              if (streamData.gearName && !act.gearName) {
+                act.gearName = streamData.gearName;
+                currentActivity.gearName = streamData.gearName;
+                syncEditorInputs();
+              }
               triggerRender();
             }
           } catch {}
@@ -1139,6 +1230,11 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
           activities[0].elevationGainMeters = s.elevationGainMeters;
           currentActivity.elevationGainMeters = s.elevationGainMeters;
           if (editEleInput) editEleInput.value = currentActivity.elevationGainMeters.toString();
+        }
+        if (s.gearName && !activities[0].gearName) {
+          activities[0].gearName = s.gearName;
+          currentActivity.gearName = s.gearName;
+          syncEditorInputs();
         }
         triggerRender();
       })

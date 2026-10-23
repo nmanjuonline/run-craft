@@ -368,11 +368,7 @@ export class CanvasEngine {
 
     // Watermark
     if (config.showWatermark) {
-      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.textAlign = 'center';
-      ctx.shadowBlur = 0;
-      ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h * 0.982);
+      this.drawWatermark(w, h, config);
     }
 
     ctx.restore();
@@ -576,10 +572,7 @@ export class CanvasEngine {
     }
 
     if (config.showWatermark) {
-      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.textAlign = 'center';
-      ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h * 0.984);
+      this.drawWatermark(w, h, config);
     }
 
     ctx.restore();
@@ -895,13 +888,7 @@ export class CanvasEngine {
     }
 
     if (config.showWatermark) {
-      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = `${activeColor}aa`;
-      ctx.textAlign = 'center';
-      ctx.shadowColor = activeColor;
-      ctx.shadowBlur = 8;
-      ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h * 0.983);
-      ctx.shadowBlur = 0;
+      this.drawWatermark(w, h, config);
     }
 
     ctx.restore();
@@ -1069,10 +1056,61 @@ export class CanvasEngine {
     }
 
     if (config.showWatermark) {
-      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.textAlign = 'right';
-      ctx.fillText(`⚡ ${config.watermarkText}`, w - margin, h - h * 0.045);
+      const splitFontSize = Math.max(13, Math.round(w * 0.02));
+      ctx.font = `800 ${splitFontSize}px "JetBrains Mono", monospace`;
+
+      const bolt = '⚡ ';
+      const isDefault =
+        !config.watermarkText ||
+        config.watermarkText === 'Crafted with RunCraft' ||
+        config.watermarkText.toUpperCase().includes('RUNCRAFT');
+      const bText = isDefault ? 'RUN·CRAFT' : config.watermarkText;
+      const bTextW = ctx.measureText(bolt + bText).width;
+
+      const padX = Math.round(splitFontSize * 0.85);
+      const padY = Math.round(splitFontSize * 0.38);
+      const pillW = bTextW + padX * 2;
+      const pillH = splitFontSize + padY * 2;
+      const pillX = w - margin - pillW;
+      const pillY = Math.round(h - h * 0.045 - pillH / 2);
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = 'rgba(12, 16, 26, 0.88)';
+      this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+      ctx.fill();
+
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 6;
+      ctx.strokeStyle = `${activeColor}66`;
+      ctx.lineWidth = 1.2;
+      this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+
+      let curX = pillX + padX;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(bolt, curX, pillY + pillH / 2 + 1);
+      curX += ctx.measureText(bolt).width;
+
+      if (isDefault) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('RUN', curX, pillY + pillH / 2 + 1);
+        curX += ctx.measureText('RUN').width;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText('·', curX, pillY + pillH / 2 + 1);
+        curX += ctx.measureText('·').width;
+
+        ctx.fillStyle = activeColor;
+        ctx.fillText('CRAFT', curX, pillY + pillH / 2 + 1);
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(bText, curX, pillY + pillH / 2 + 1);
+      }
     }
 
     ctx.restore();
@@ -1226,9 +1264,39 @@ export class CanvasEngine {
     ctx.fill();
 
     if (config.showWatermark) {
-      ctx.font = `400 ${Math.round(w * 0.016)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(42,32,21,0.25)';
-      ctx.fillText(config.watermarkText, captionCX, captionY + h * 0.188);
+      const pWatermarkY = captionY + h * 0.185;
+      const pFontSize = Math.max(13, Math.round(w * 0.022));
+      ctx.font = `800 ${pFontSize}px "JetBrains Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const bolt = '⚡ ';
+      const isDefault =
+        !config.watermarkText ||
+        config.watermarkText === 'Crafted with RunCraft' ||
+        config.watermarkText.toUpperCase().includes('RUNCRAFT');
+
+      const pBoltW = ctx.measureText(bolt).width;
+      const pText1 = isDefault ? 'RUN' : config.watermarkText;
+      const pText2 = isDefault ? '·CRAFT' : '';
+      const pW1 = ctx.measureText(pText1).width;
+      const pW2 = isDefault ? ctx.measureText(pText2).width : 0;
+      const pTotalW = pBoltW + pW1 + pW2;
+
+      let pCurX = captionCX - pTotalW / 2;
+
+      ctx.fillStyle = config.accentColor === '#ffffff' ? '#00b462' : config.accentColor;
+      ctx.fillText(bolt, pCurX + pBoltW / 2, pWatermarkY);
+      pCurX += pBoltW;
+
+      ctx.fillStyle = 'rgba(16, 22, 34, 0.90)';
+      ctx.fillText(pText1, pCurX + pW1 / 2, pWatermarkY);
+      pCurX += pW1;
+
+      if (isDefault) {
+        ctx.fillStyle = config.accentColor === '#ffffff' ? '#008a4b' : config.accentColor;
+        ctx.fillText(pText2, pCurX + pW2 / 2, pWatermarkY);
+      }
     }
 
     ctx.restore();
@@ -1898,12 +1966,7 @@ export class CanvasEngine {
     }
 
     if (config.showWatermark) {
-      ctx.save();
-      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.textAlign = 'center';
-      ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h - btmBarH * 0.18);
-      ctx.restore();
+      this.drawWatermark(w, h, config, h - btmBarH * 0.22);
     }
   }
 
@@ -2615,15 +2678,103 @@ export class CanvasEngine {
     ctx.restore();
   }
 
-  private drawWatermark(w: number, h: number, config: OverlayConfig) {
+  private drawWatermark(w: number, h: number, config: OverlayConfig, customY?: number) {
     const ctx = this.ctx;
     ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = '600 20px "JetBrains Mono", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+
+    const activeColor = config.accentColor || '#c8ff00';
+    const minDim = Math.min(w, h);
+    // Proportionally scaled font size: crisp, prominent, legible across all aspect ratios
+    const fontSize = Math.max(14, Math.round(minDim * 0.022));
+
+    ctx.font = `800 ${fontSize}px "JetBrains Mono", monospace`;
+
+    const rawText = (config.watermarkText || 'Crafted with RunCraft').trim();
+    const isDefaultBrand =
+      !rawText ||
+      rawText === 'Crafted with RunCraft' ||
+      rawText.toUpperCase() === 'RUNCRAFT' ||
+      rawText.toUpperCase() === 'RUN·CRAFT' ||
+      rawText.toUpperCase() === 'RUN CRAFT';
+
+    const bolt = '⚡ ';
+    const part1 = isDefaultBrand ? 'RUN' : rawText;
+    const dot = isDefaultBrand ? '·' : '';
+    const part2 = isDefaultBrand ? 'CRAFT' : '';
+
+    const boltWidth = ctx.measureText(bolt).width;
+    const part1Width = ctx.measureText(part1).width;
+    const dotWidth = isDefaultBrand ? ctx.measureText(dot).width : 0;
+    const part2Width = isDefaultBrand ? ctx.measureText(part2).width : 0;
+    const totalTextWidth = boltWidth + part1Width + dotWidth + part2Width;
+
+    const padX = Math.round(fontSize * 0.95);
+    const padY = Math.round(fontSize * 0.42);
+    const pillW = Math.round(totalTextWidth + padX * 2);
+    const pillH = Math.round(fontSize + padY * 2);
+    const pillX = Math.round((w - pillW) / 2);
+    const pillY = customY !== undefined
+      ? Math.round(customY - pillH / 2)
+      : Math.round(h - pillH - Math.max(18, Math.round(h * 0.024)));
+
+    // 1. Frosted Glass Capsule Fill with soft shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 4;
+
+    const grad = ctx.createLinearGradient(pillX, pillY, pillX, pillY + pillH);
+    grad.addColorStop(0, 'rgba(14, 18, 28, 0.88)');
+    grad.addColorStop(1, 'rgba(6, 9, 16, 0.94)');
+    ctx.fillStyle = grad;
+    this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+    ctx.fill();
+
+    // 2. Luminous Accent Border with subtle glow
+    ctx.shadowColor = activeColor;
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = `${activeColor}77`;
+    ctx.lineWidth = 1.5;
+    this.roundRect(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+    ctx.stroke();
+
+    // 3. Crisp Dual-Tone Typography
+    ctx.shadowBlur = 0;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    const textY = pillY + pillH / 2 + 1;
+    let curX = pillX + padX;
+
+    // Bolt in glowing accent color
+    ctx.fillStyle = activeColor;
+    ctx.shadowColor = activeColor;
     ctx.shadowBlur = 6;
-    ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h - 30);
+    ctx.fillText(bolt, curX, textY);
+    ctx.shadowBlur = 0;
+    curX += boltWidth;
+
+    // RUN (or custom text) in 100% crisp pure white
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(part1, curX, textY);
+    curX += part1Width;
+
+    if (isDefaultBrand) {
+      // Dot separator
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.shadowBlur = 0;
+      ctx.fillText(dot, curX, textY);
+      curX += dotWidth;
+
+      // CRAFT in glowing accent color
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 6;
+      ctx.fillText(part2, curX, textY);
+    }
+
     ctx.restore();
   }
 

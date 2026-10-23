@@ -110,8 +110,8 @@ export class CanvasEngine {
     if (config.showTitleHeader) {
       this.drawHeader(activity, w, h, config);
     }
-    // 5. Hero Metrics Card
-    if (config.showHeroStats) {
+    // 5. Hero & Secondary Metrics Card
+    if (config.showHeroStats !== false || config.showSecondaryStats !== false) {
       this.drawHeroStats(activity, w, h, config);
     }
     // 6. Heart Rate Zones Bar
@@ -189,35 +189,43 @@ export class CanvasEngine {
       ctx.fillText(activity.locationCity, w * 0.06, h * 0.148);
     }
 
-    // BIG central distance hero
-    const distKm = (activity.distanceMeters / 1000).toFixed(2);
-    const bigFontSize = Math.round(w * 0.22);
-    ctx.font = `900 ${bigFontSize}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillStyle = config.accentColor;
-    ctx.textAlign = 'left';
-    ctx.shadowColor = config.accentColor;
-    ctx.shadowBlur = 40;
-    ctx.globalAlpha = 0.15;
-    ctx.fillText(distKm, w * 0.03, h * 0.62);
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
+    const metricsConfig = config.metrics || {
+      distance: true, time: true, pace: true, elevation: true,
+      heartRate: true, cadence: true, calories: true, power: true,
+    };
+    const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
 
-    // Distance label
-    ctx.font = `800 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.textAlign = 'left';
-    ctx.fillText('DISTANCE', w * 0.06, h * 0.58);
+    if (showHero) {
+      // BIG central distance hero
+      const distKm = (activity.distanceMeters / 1000).toFixed(2);
+      const bigFontSize = Math.round(w * 0.22);
+      ctx.font = `900 ${bigFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = config.accentColor;
+      ctx.textAlign = 'left';
+      ctx.shadowColor = config.accentColor;
+      ctx.shadowBlur = 40;
+      ctx.globalAlpha = 0.15;
+      ctx.fillText(distKm, w * 0.03, h * 0.62);
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
 
-    ctx.font = `900 ${Math.round(w * 0.17)}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = 'rgba(0,0,0,0.9)';
-    ctx.shadowBlur = 30;
-    ctx.fillText(distKm, w * 0.06, h * 0.72);
+      // Distance label
+      ctx.font = `800 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.textAlign = 'left';
+      ctx.fillText('DISTANCE', w * 0.06, h * 0.58);
 
-    ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
-    ctx.fillStyle = config.accentColor;
-    ctx.shadowBlur = 0;
-    ctx.fillText('KM', w * 0.06, h * 0.755);
+      ctx.font = `900 ${Math.round(w * 0.17)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 30;
+      ctx.fillText(distKm, w * 0.06, h * 0.72);
+
+      ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = config.accentColor;
+      ctx.shadowBlur = 0;
+      ctx.fillText('KM', w * 0.06, h * 0.755);
+    }
 
     // Ensure accurate elevation gain
     let eleGain = activity.elevationGainMeters;
@@ -230,21 +238,33 @@ export class CanvasEngine {
     }
 
     // Bottom metric pill strip
+    const showSecondary = config.showSecondaryStats !== false;
     const metricsToShow: Array<{ label: string; val: string; unit: string }> = [];
-    if (config.metrics?.pace !== false) {
-      metricsToShow.push({ label: 'PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km' });
-    }
-    if (config.metrics?.time !== false) {
-      metricsToShow.push({ label: 'TIME', val: formatDuration(activity.movingTimeSec), unit: '' });
-    }
-    if (config.metrics?.elevation !== false && eleGain > 0) {
-      metricsToShow.push({ label: 'ELEV', val: `+${Math.round(eleGain)}`, unit: 'm' });
-    }
-    if (config.metrics?.heartRate !== false && activity.avgHeartRate) {
-      metricsToShow.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
-    }
-    if (config.metrics?.cadence && activity.avgCadence) {
-      metricsToShow.push({ label: 'CADENCE', val: `${activity.avgCadence}`, unit: 'spm' });
+    if (showSecondary) {
+      if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+        metricsToShow.push({ label: 'DIST', val: (activity.distanceMeters / 1000).toFixed(2), unit: 'km' });
+      }
+      if (metricsConfig.pace !== false) {
+        metricsToShow.push({ label: 'PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km' });
+      }
+      if (metricsConfig.time !== false) {
+        metricsToShow.push({ label: 'TIME', val: formatDuration(activity.movingTimeSec), unit: '' });
+      }
+      if (metricsConfig.elevation !== false && eleGain > 0) {
+        metricsToShow.push({ label: 'ELEV', val: `+${Math.round(eleGain)}`, unit: 'm' });
+      }
+      if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+        metricsToShow.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
+      }
+      if (metricsConfig.cadence && activity.avgCadence) {
+        metricsToShow.push({ label: 'CADENCE', val: `${activity.avgCadence}`, unit: 'spm' });
+      }
+      if (metricsConfig.calories && activity.calories) {
+        metricsToShow.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
+      }
+      if (metricsConfig.power && activity.avgPowerWatts) {
+        metricsToShow.push({ label: 'POWER', val: `${activity.avgPowerWatts}`, unit: 'W' });
+      }
     }
 
     if (metricsToShow.length > 0) {
@@ -417,40 +437,73 @@ export class CanvasEngine {
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fillRect(margin + 12, h * 0.175, leftW - margin - 12, 2);
 
-      // Big distance
-      const distKm = (activity.distanceMeters / 1000).toFixed(2);
-      ctx.font = `900 ${Math.round(w * 0.115)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = config.accentColor;
-      ctx.textAlign = 'left';
-      ctx.fillText(distKm, margin + 12, h * 0.34);
+      const metricsConfig = config.metrics || {
+        distance: true, time: true, pace: true, elevation: true,
+        heartRate: true, cadence: true, calories: true, power: true,
+      };
+      const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
+      const showSecondary = config.showSecondaryStats !== false;
 
-      ctx.font = `700 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText('KILOMETERS', margin + 12, h * 0.375);
+      // Big distance
+      if (showHero) {
+        const distKm = (activity.distanceMeters / 1000).toFixed(2);
+        ctx.font = `900 ${Math.round(w * 0.115)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = config.accentColor;
+        ctx.textAlign = 'left';
+        ctx.fillText(distKm, margin + 12, h * 0.34);
+
+        ctx.font = `700 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText('KILOMETERS', margin + 12, h * 0.375);
+      }
 
       // Metric grid
-      const rows = [
-        { label: 'PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km' },
-        { label: 'TIME', val: formatDuration(activity.movingTimeSec), unit: '' },
-        { label: 'ELEV', val: `+${Math.round(activity.elevationGainMeters)}m`, unit: '' },
-        { label: 'HEART RATE', val: activity.avgHeartRate ? `${activity.avgHeartRate} bpm` : '—', unit: '' },
-      ];
+      const rows: Array<{ label: string; val: string }> = [];
+      if (showSecondary) {
+        if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+          rows.push({ label: 'DISTANCE', val: `${(activity.distanceMeters / 1000).toFixed(2)} km` });
+        }
+        if (metricsConfig.pace !== false) {
+          rows.push({ label: 'PACE', val: `${formatPace(activity.avgPaceSecPerKm)}/km` });
+        }
+        if (metricsConfig.time !== false) {
+          rows.push({ label: 'TIME', val: formatDuration(activity.movingTimeSec) });
+        }
+        if (metricsConfig.elevation !== false && activity.elevationGainMeters > 0) {
+          rows.push({ label: 'ELEV', val: `+${Math.round(activity.elevationGainMeters)}m` });
+        }
+        if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+          rows.push({ label: 'HEART RATE', val: `${activity.avgHeartRate} bpm` });
+        }
+        if (metricsConfig.cadence && activity.avgCadence) {
+          rows.push({ label: 'CADENCE', val: `${activity.avgCadence} spm` });
+        }
+        if (metricsConfig.calories && activity.calories) {
+          rows.push({ label: 'CALORIES', val: `${activity.calories} kcal` });
+        }
+        if (metricsConfig.power && activity.avgPowerWatts) {
+          rows.push({ label: 'POWER', val: `${activity.avgPowerWatts} W` });
+        }
+      }
+
+      const startGridY = showHero ? h * 0.44 : h * 0.22;
+      const rowStep = Math.min(h * 0.09, (h * 0.50) / Math.max(rows.length, 1));
 
       rows.forEach((row, i) => {
-        const rowY = h * 0.44 + i * h * 0.1;
+        const rowY = startGridY + i * rowStep;
         ctx.textAlign = 'left';
         ctx.font = `700 ${Math.round(w * 0.012)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = 'rgba(255,255,255,0.42)';
         ctx.fillText(row.label, margin + 12, rowY);
 
-        ctx.font = `800 ${Math.round(w * 0.028)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.font = `800 ${Math.round(w * 0.026)}px "Plus Jakarta Sans", sans-serif`;
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(row.val, margin + 12, rowY + h * 0.055);
+        ctx.fillText(row.val, margin + 12, rowY + rowStep * 0.5);
 
         // divider
         if (i < rows.length - 1) {
           ctx.fillStyle = 'rgba(255,255,255,0.09)';
-          ctx.fillRect(margin + 12, rowY + h * 0.072, leftW - margin * 2, 1);
+          ctx.fillRect(margin + 12, rowY + rowStep * 0.72, leftW - margin * 2, 1);
         }
       });
 
@@ -494,16 +547,25 @@ export class CanvasEngine {
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
       ctx.fillRect(margin + 16, ruleY, w * 0.85, 2);
 
-      // Giant distance number
-      const distKm = (activity.distanceMeters / 1000).toFixed(2);
-      ctx.font = `900 ${Math.round(w * 0.24)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = config.accentColor;
-      ctx.textAlign = 'left';
-      ctx.fillText(distKm, margin, h * 0.37);
+      const metricsConfig = config.metrics || {
+        distance: true, time: true, pace: true, elevation: true,
+        heartRate: true, cadence: true, calories: true, power: true,
+      };
+      const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
+      const showSecondary = config.showSecondaryStats !== false;
 
-      ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText('KILOMETERS', margin + 16, h * 0.395);
+      // Giant distance number
+      if (showHero) {
+        const distKm = (activity.distanceMeters / 1000).toFixed(2);
+        ctx.font = `900 ${Math.round(w * 0.24)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = config.accentColor;
+        ctx.textAlign = 'left';
+        ctx.fillText(distKm, margin, h * 0.37);
+
+        ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText('KILOMETERS', margin + 16, h * 0.395);
+      }
 
       // Route polyline: center
       if (config.showPolyline && activity.points && activity.points.length > 1) {
@@ -518,46 +580,69 @@ export class CanvasEngine {
       }
 
       // Stats table
-      const tableRows = [
-        { label: 'AVG PACE', val: formatPace(activity.avgPaceSecPerKm) + '/km' },
-        { label: 'MOVING TIME', val: formatDuration(activity.movingTimeSec) },
-        { label: 'ELEV GAIN', val: `+${Math.round(activity.elevationGainMeters)} m` },
-        { label: 'HEART RATE', val: activity.avgHeartRate ? `${activity.avgHeartRate} bpm` : '—' },
-        { label: 'CADENCE', val: activity.avgCadence ? `${activity.avgCadence} spm` : '—' },
-      ];
-
-      const tableStartY = h * 0.69;
-      const colWidth = (w - margin * 2 - 16) / 2;
-
-      // Table header
-      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.38)';
-      ctx.textAlign = 'left';
-      ctx.fillText('METRIC', margin + 16, tableStartY - h * 0.015);
-      ctx.textAlign = 'right';
-      ctx.fillText('VALUE', w - margin - 16, tableStartY - h * 0.015);
-
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(margin + 16, tableStartY - h * 0.005, w - margin * 2 - 32, 1.5);
-
-      tableRows.forEach((row, i) => {
-        const rowY = tableStartY + i * h * 0.055;
-
-        ctx.font = `600 ${Math.round(w * 0.026)}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = 'rgba(255,255,255,0.52)';
-        ctx.textAlign = 'left';
-        ctx.fillText(row.label, margin + 16, rowY + h * 0.04);
-
-        ctx.font = `800 ${Math.round(w * 0.03)}px "Plus Jakarta Sans", sans-serif`;
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'right';
-        ctx.fillText(row.val, w - margin - 16, rowY + h * 0.04);
-
-        if (i < tableRows.length - 1) {
-          ctx.fillStyle = 'rgba(255,255,255,0.07)';
-          ctx.fillRect(margin + 16, rowY + h * 0.05, w - margin * 2 - 32, 1);
+      const tableRows: Array<{ label: string; val: string }> = [];
+      if (showSecondary) {
+        if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+          tableRows.push({ label: 'DISTANCE', val: `${(activity.distanceMeters / 1000).toFixed(2)} km` });
         }
-      });
+        if (metricsConfig.pace !== false) {
+          tableRows.push({ label: 'AVG PACE', val: formatPace(activity.avgPaceSecPerKm) + '/km' });
+        }
+        if (metricsConfig.time !== false) {
+          tableRows.push({ label: 'MOVING TIME', val: formatDuration(activity.movingTimeSec) });
+        }
+        if (metricsConfig.elevation !== false && activity.elevationGainMeters > 0) {
+          tableRows.push({ label: 'ELEV GAIN', val: `+${Math.round(activity.elevationGainMeters)} m` });
+        }
+        if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+          tableRows.push({ label: 'HEART RATE', val: `${activity.avgHeartRate} bpm` });
+        }
+        if (metricsConfig.cadence && activity.avgCadence) {
+          tableRows.push({ label: 'CADENCE', val: `${activity.avgCadence} spm` });
+        }
+        if (metricsConfig.calories && activity.calories) {
+          tableRows.push({ label: 'CALORIES', val: `${activity.calories} kcal` });
+        }
+        if (metricsConfig.power && activity.avgPowerWatts) {
+          tableRows.push({ label: 'POWER', val: `${activity.avgPowerWatts} W` });
+        }
+      }
+
+      if (tableRows.length > 0) {
+        const tableStartY = showHero ? h * 0.69 : h * 0.52;
+        const maxDisplay = Math.min(tableRows.length, 6);
+        const rowStep = Math.min(h * 0.052, (h * 0.28) / maxDisplay);
+
+        // Table header
+        ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255,255,255,0.38)';
+        ctx.textAlign = 'left';
+        ctx.fillText('METRIC', margin + 16, tableStartY - h * 0.015);
+        ctx.textAlign = 'right';
+        ctx.fillText('VALUE', w - margin - 16, tableStartY - h * 0.015);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(margin + 16, tableStartY - h * 0.005, w - margin * 2 - 32, 1.5);
+
+        tableRows.slice(0, 6).forEach((row, i) => {
+          const rowY = tableStartY + i * rowStep;
+
+          ctx.font = `600 ${Math.round(w * 0.024)}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = 'rgba(255,255,255,0.52)';
+          ctx.textAlign = 'left';
+          ctx.fillText(row.label, margin + 16, rowY + rowStep * 0.65);
+
+          ctx.font = `800 ${Math.round(w * 0.028)}px "Plus Jakarta Sans", sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'right';
+          ctx.fillText(row.val, w - margin - 16, rowY + rowStep * 0.65);
+
+          if (i < maxDisplay - 1) {
+            ctx.fillStyle = 'rgba(255,255,255,0.07)';
+            ctx.fillRect(margin + 16, rowY + rowStep * 0.85, w - margin * 2 - 32, 1);
+          }
+        });
+      }
     }
 
     if (config.showWatermark) {
@@ -1088,18 +1173,34 @@ export class CanvasEngine {
     // Stats panel content
     const statsTop = splitY + h * 0.03;
 
-    // Primary hero stats - 2x2 grid
-    const heroMetrics = [
-      { label: 'DISTANCE', val: (activity.distanceMeters / 1000).toFixed(2), unit: 'km', color: config.accentColor },
-      { label: 'AVG PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km', color: '#ffffff' },
-      { label: 'MOVING TIME', val: formatDuration(activity.movingTimeSec), unit: '', color: '#ffffff' },
-      { label: 'ELEV GAIN', val: `+${Math.round(activity.elevationGainMeters)}`, unit: 'm', color: '#00f0ff' },
-    ];
+    const metricsConfig = config.metrics || {
+      distance: true, time: true, pace: true, elevation: true,
+      heartRate: true, cadence: true, calories: true, power: true,
+    };
+    const showHero = config.showHeroStats !== false;
+    const showSecondary = config.showSecondaryStats !== false;
 
-    const gridCols = 2;
-    const gridRows = 2;
+    // Primary hero stats
+    const heroMetrics: Array<{ label: string; val: string; unit: string; color: string }> = [];
+    if (showHero) {
+      if (metricsConfig.distance !== false) {
+        heroMetrics.push({ label: 'DISTANCE', val: (activity.distanceMeters / 1000).toFixed(2), unit: 'km', color: config.accentColor });
+      }
+      if (metricsConfig.pace !== false) {
+        heroMetrics.push({ label: 'AVG PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/km', color: '#ffffff' });
+      }
+      if (metricsConfig.time !== false) {
+        heroMetrics.push({ label: 'MOVING TIME', val: formatDuration(activity.movingTimeSec), unit: '', color: '#ffffff' });
+      }
+      if (metricsConfig.elevation !== false && activity.elevationGainMeters > 0) {
+        heroMetrics.push({ label: 'ELEV GAIN', val: `+${Math.round(activity.elevationGainMeters)}`, unit: 'm', color: '#00f0ff' });
+      }
+    }
+
+    const gridCols = heroMetrics.length === 1 ? 1 : 2;
+    const gridRows = Math.ceil(heroMetrics.length / gridCols);
     const cellW = (w - margin * 2) / gridCols;
-    const cellH = (h - splitY) * 0.37 / gridRows;
+    const cellH = heroMetrics.length > 0 ? (h - splitY) * 0.37 / Math.max(gridRows, 1) : 0;
 
     heroMetrics.forEach((m, i) => {
       const col = i % gridCols;
@@ -1132,17 +1233,34 @@ export class CanvasEngine {
     });
 
     // Divider
-    const dividerY = statsTop + gridRows * (cellH + h * 0.01) + h * 0.01;
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillRect(margin, dividerY, w - margin * 2, 1);
+    const dividerY = heroMetrics.length > 0
+      ? statsTop + gridRows * (cellH + h * 0.01) + h * 0.01
+      : statsTop + h * 0.02;
 
     // Secondary stats row
     const secParts: string[] = [];
-    if (activity.avgHeartRate) secParts.push(`❤️ ${activity.avgHeartRate} bpm`);
-    if (activity.avgCadence) secParts.push(`⚡ ${activity.avgCadence} spm`);
-    if (activity.calories) secParts.push(`🔥 ${activity.calories} kcal`);
+    if (showSecondary) {
+      if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+        secParts.push(`📏 ${(activity.distanceMeters / 1000).toFixed(2)} km`);
+      }
+      if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+        secParts.push(`❤️ ${activity.avgHeartRate} bpm`);
+      }
+      if (metricsConfig.cadence && activity.avgCadence) {
+        secParts.push(`⚡ ${activity.avgCadence} spm`);
+      }
+      if (metricsConfig.calories && activity.calories) {
+        secParts.push(`🔥 ${activity.calories} kcal`);
+      }
+      if (metricsConfig.power && activity.avgPowerWatts) {
+        secParts.push(`⚡ ${activity.avgPowerWatts} W`);
+      }
+    }
 
     if (secParts.length > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.fillRect(margin, dividerY, w - margin * 2, 1);
+
       ctx.font = `600 ${Math.round(w * 0.024)}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = 'rgba(255,255,255,0.65)';
       ctx.textAlign = 'center';
@@ -1367,15 +1485,47 @@ export class CanvasEngine {
     });
 
     // Stat line
-    const statLine = [
-      (activity.distanceMeters / 1000).toFixed(1) + ' km',
-      formatDuration(activity.movingTimeSec),
-      formatPace(activity.avgPaceSecPerKm) + '/km',
-    ].join('  ·  ');
+    const metricsConfig = config.metrics || {
+      distance: true, time: true, pace: true, elevation: true,
+      heartRate: true, cadence: true, calories: true, power: true,
+    };
+    const showHero = config.showHeroStats !== false;
+    const showSecondary = config.showSecondaryStats !== false;
 
-    ctx.font = `600 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
-    ctx.fillStyle = 'rgba(42,32,21,0.62)';
-    ctx.fillText(statLine, captionCX, captionY + h * 0.115);
+    const statItems: string[] = [];
+    if (showHero && metricsConfig.distance !== false) {
+      statItems.push(`${(activity.distanceMeters / 1000).toFixed(1)} km`);
+    }
+    if (metricsConfig.time !== false) {
+      statItems.push(formatDuration(activity.movingTimeSec));
+    }
+    if (metricsConfig.pace !== false) {
+      statItems.push(`${formatPace(activity.avgPaceSecPerKm)}/km`);
+    }
+    if (showSecondary) {
+      if (metricsConfig.elevation !== false && activity.elevationGainMeters > 0) {
+        statItems.push(`+${Math.round(activity.elevationGainMeters)}m`);
+      }
+      if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+        statItems.push(`${activity.avgHeartRate} bpm`);
+      }
+      if (metricsConfig.cadence && activity.avgCadence) {
+        statItems.push(`${activity.avgCadence} spm`);
+      }
+      if (metricsConfig.calories && activity.calories) {
+        statItems.push(`${activity.calories} kcal`);
+      }
+      if (metricsConfig.power && activity.avgPowerWatts) {
+        statItems.push(`${activity.avgPowerWatts}W`);
+      }
+    }
+
+    if (statItems.length > 0) {
+      const statLine = statItems.slice(0, 5).join('  ·  ');
+      ctx.font = `600 ${Math.round(w * 0.026)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(42,32,21,0.62)';
+      ctx.fillText(statLine, captionCX, captionY + h * 0.115);
+    }
 
     // Date / location
     const meta = [activity.date, activity.locationCity].filter(Boolean).join('  —  ');
@@ -1843,16 +1993,18 @@ export class CanvasEngine {
       { key: 'elevation', label: 'ELEV GAIN', val: eleStr, unit: 'm', color: '#00f0ff' },
     ];
 
-    const cols = allHeroCols.filter((col) => metricsConfig[col.key as keyof typeof metricsConfig]);
+    const cols = config.showHeroStats !== false
+      ? allHeroCols.filter((col) => metricsConfig[col.key as keyof typeof metricsConfig] !== false)
+      : [];
 
     const secMetrics: string[] = [];
-    if (config.showSecondaryStats) {
-      if (metricsConfig.heartRate && activity.avgHeartRate) secMetrics.push(`❤️ ${activity.avgHeartRate} bpm`);
+    if (config.showSecondaryStats !== false) {
+      if (metricsConfig.heartRate !== false && activity.avgHeartRate) secMetrics.push(`❤️ ${activity.avgHeartRate} bpm`);
       if (metricsConfig.cadence && activity.avgCadence) secMetrics.push(`⚡ ${activity.avgCadence} spm`);
       if (metricsConfig.calories && activity.calories) secMetrics.push(`🔥 ${activity.calories} kcal`);
       if (metricsConfig.power && activity.avgPowerWatts) secMetrics.push(`⚡ ${activity.avgPowerWatts} W`);
 
-      if (metricsConfig.elevation && activity.points && activity.points.length > 0) {
+      if (metricsConfig.elevation !== false && activity.points && activity.points.length > 0) {
         let minEle = Infinity;
         let maxEle = -Infinity;
         for (const p of activity.points) {

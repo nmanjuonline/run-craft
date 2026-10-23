@@ -86,6 +86,18 @@ export class CanvasEngine {
       case 'polaroid':
         this.renderPolaroid(activity, config, dim.width, dim.height);
         break;
+      case 'magazine':
+        this.renderMagazine(activity, config, dim.width, dim.height);
+        break;
+      case 'tactical-hud':
+        this.renderTacticalHud(activity, config, dim.width, dim.height);
+        break;
+      case 'finisher-badge':
+        this.renderFinisherBadge(activity, config, dim.width, dim.height);
+        break;
+      case 'ticker-tape':
+        this.renderTickerTape(activity, config, dim.width, dim.height);
+        break;
       case 'classic':
       default:
         this.renderClassic(activity, config, dim.width, dim.height);
@@ -1078,6 +1090,679 @@ export class CanvasEngine {
     }
 
     ctx.restore();
+  }
+
+  // ============================================================
+  // SHARED METRICS HELPER (used by magazine, hud, badge, ticker)
+  // ============================================================
+  private getMetricsToShow(activity: WorkoutActivity, config: OverlayConfig) {
+    const metricsConfig = config.metrics || {
+      distance: true,
+      time: true,
+      pace: true,
+      elevation: true,
+      heartRate: true,
+      cadence: true,
+      calories: true,
+      power: true,
+    };
+
+    let eleGain = activity.elevationGainMeters;
+    if ((eleGain === undefined || eleGain === 0) && activity.points && activity.points.length > 1) {
+      const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
+      if (altitudes.length >= 2) {
+        eleGain = computeRobustElevationGain(altitudes);
+        activity.elevationGainMeters = eleGain;
+      }
+    }
+
+    const distKm = (activity.distanceMeters / 1000).toFixed(2);
+    const paceStr = formatPace(activity.avgPaceSecPerKm);
+    const timeStr = formatDuration(activity.movingTimeSec);
+    const eleStr = eleGain > 0 ? `+${Math.round(eleGain)}` : '0';
+    const hrStr = activity.avgHeartRate ? `${activity.avgHeartRate}` : '—';
+
+    const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
+
+    const metricsList: Array<{ label: string; val: string; unit: string }> = [];
+    if (!showHero && metricsConfig.distance !== false && activity.distanceMeters > 0) {
+      metricsList.push({ label: 'DIST', val: distKm, unit: 'km' });
+    }
+    if (metricsConfig.pace !== false) {
+      metricsList.push({ label: 'PACE', val: paceStr, unit: '/km' });
+    }
+    if (metricsConfig.time !== false) {
+      metricsList.push({ label: 'TIME', val: timeStr, unit: '' });
+    }
+    if (metricsConfig.elevation !== false && eleGain > 0) {
+      metricsList.push({ label: 'ELEV', val: eleStr, unit: 'm' });
+    }
+    if (metricsConfig.heartRate !== false && activity.avgHeartRate) {
+      metricsList.push({ label: 'AVG HR', val: `${activity.avgHeartRate}`, unit: 'bpm' });
+    }
+    if (metricsConfig.cadence && activity.avgCadence) {
+      metricsList.push({ label: 'CADENCE', val: `${activity.avgCadence}`, unit: 'spm' });
+    }
+    if (metricsConfig.calories && activity.calories) {
+      metricsList.push({ label: 'CALORIES', val: `${activity.calories}`, unit: 'kcal' });
+    }
+    if (metricsConfig.power && activity.avgPowerWatts) {
+      metricsList.push({ label: 'POWER', val: `${activity.avgPowerWatts}`, unit: 'W' });
+    }
+
+    let coordStr = '37.832°N  122.525°W';
+    if (activity.points && activity.points.length > 0) {
+      const p = activity.points[0];
+      coordStr = `${Math.abs(p.lat).toFixed(3)}°${p.lat >= 0 ? 'N' : 'S'}  ${Math.abs(p.lon).toFixed(3)}°${p.lon >= 0 ? 'E' : 'W'}`;
+    }
+
+    const showSecondary = config.showSecondaryStats !== false && metricsList.length > 0;
+    const cardAlpha = Math.max(0.15, config.cardOpacity ?? 0.75);
+
+    return {
+      distKm,
+      paceStr,
+      timeStr,
+      eleStr,
+      hrStr,
+      coordStr,
+      showHero,
+      metricsList,
+      showSecondary,
+      cardAlpha,
+    };
+  }
+
+  // Helper: draw glass metric dock
+  private drawGlassMetricDock(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    x: number,
+    y: number,
+    dockW: number,
+    dockH: number,
+    metricsList: Array<{ label: string; val: string; unit: string }>,
+    cardAlpha: number
+  ) {
+    if (metricsList.length === 0) return;
+
+    ctx.fillStyle = `rgba(12, 16, 26, ${0.68 * cardAlpha})`;
+    this.roundRect(ctx, x, y, dockW, dockH, 18);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.16 * cardAlpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const colW = dockW / metricsList.length;
+    const minDim = Math.min(w, h);
+    const labelFontSize = Math.max(10, Math.round(minDim * 0.015));
+    const baseValFontSize = Math.min(Math.round(minDim * 0.036), Math.round(colW * 0.17));
+
+    metricsList.forEach((m, i) => {
+      const cx = x + colW * i + colW / 2;
+
+      if (i < metricsList.length - 1) {
+        const divX = x + colW * (i + 1);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 * cardAlpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(divX, y + dockH * 0.2);
+        ctx.lineTo(divX, y + dockH * 0.8);
+        ctx.stroke();
+      }
+
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${labelFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText(m.label, cx, y + dockH * 0.35);
+
+      let curValSize = baseValFontSize;
+      let curUnitSize = Math.max(9, Math.round(curValSize * 0.52));
+      const unitText = m.unit ? ' ' + m.unit : '';
+
+      ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+      let valW = ctx.measureText(m.val).width;
+      ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
+      let unitW = unitText ? ctx.measureText(unitText).width : 0;
+      let totalW = valW + unitW;
+
+      if (totalW > colW * 0.84) {
+        const scale = (colW * 0.84) / totalW;
+        curValSize = Math.max(11, Math.floor(curValSize * scale));
+        curUnitSize = Math.max(8, Math.floor(curUnitSize * scale));
+        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+        valW = ctx.measureText(m.val).width;
+      }
+
+      const startX = cx - (valW + unitW) / 2;
+      const valY = y + dockH * 0.76;
+
+      ctx.textAlign = 'left';
+      ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(m.val, startX, valY);
+
+      if (unitText) {
+        ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.fillText(unitText, startX + valW, valY);
+      }
+    });
+  }
+
+  // ============================================================
+  // LAYOUT 7: MAGAZINE (Editorial Journal)
+  // ============================================================
+  private renderMagazine(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, coordStr, showHero, metricsList, showSecondary, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor;
+    const margin = w * 0.06;
+
+    this.drawBackground(w, h, config);
+
+    // Deep atmospheric gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(10, 14, 24, 0.85)');
+    grad.addColorStop(0.35, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.65, 'rgba(0, 0, 0, 0.45)');
+    grad.addColorStop(1, 'rgba(10, 14, 24, 0.95)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+
+    // Top Publication Header & Title
+    if (config.showTitleHeader !== false) {
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(`ATHLETIC JOURNAL • VOL. 08 • ${activity.sportType.toUpperCase()}`, margin, h * 0.065);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillText(coordStr, w - margin, h * 0.065);
+
+      // Big Title
+      ctx.font = `900 ${Math.round(w * 0.068)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title, margin, h * 0.125);
+      ctx.shadowBlur = 0;
+
+      // Subtitle (City / Gear / Shoe)
+      const subtitleText = activity.locationCity || `${activity.sportType.toUpperCase()} • ${activity.date}`;
+      ctx.font = `500 ${Math.round(w * 0.026)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.fillText(subtitleText, margin, h * 0.158);
+    }
+
+    // Left Hero Stat
+    if (showHero) {
+      ctx.font = `900 ${Math.round(w * 0.22)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 35;
+      ctx.globalAlpha = 0.15;
+      ctx.fillText(distKm, margin - 10, h * 0.58);
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+
+      ctx.font = `900 ${Math.round(w * 0.18)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 24;
+      ctx.fillText(distKm, margin, h * 0.68);
+
+      ctx.font = `700 ${Math.round(w * 0.034)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowBlur = 0;
+      ctx.fillText('KILOMETERS', margin, h * 0.72);
+    } else if (config.showHeroStats !== false && metricsList.length > 0) {
+      const fallbackHero = metricsList[0];
+      ctx.font = `900 ${Math.round(w * 0.16)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 24;
+      ctx.fillText(fallbackHero.val, margin, h * 0.68);
+
+      ctx.font = `700 ${Math.round(w * 0.032)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowBlur = 0;
+      ctx.fillText(fallbackHero.label + (fallbackHero.unit ? ` (${fallbackHero.unit})` : ''), margin, h * 0.72);
+    }
+
+    // Right Side Route in Radar Ring
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeCenterX = showHero ? 74 : 50;
+      const routeConfig = {
+        ...config,
+        accentColor: activeColor,
+        positions: { ...config.positions, routeMap: { xPercent: routeCenterX, yPercent: 44, scale: showHero ? 0.65 : 0.82 } },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+
+      ctx.strokeStyle = `${activeColor}44`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc((w * routeCenterX) / 100, h * 0.44, w * (showHero ? 0.18 : 0.23), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Bottom Glass Dock
+    if (showSecondary) {
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      this.drawGlassMetricDock(ctx, w, h, margin, h * 0.84, w - margin * 2, dockH, metricsList, cardAlpha);
+    }
+
+    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
+      this.drawHrZones(activity, w, h, config);
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 8: TACTICAL CYBER HUD
+  // ============================================================
+  private renderTacticalHud(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, coordStr, showHero, metricsList, showSecondary, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor;
+    const margin = w * 0.055;
+
+    this.drawBackground(w, h, { ...config, photoFilters: { ...config.photoFilters, brightness: config.photoFilters.brightness * 0.68 } });
+
+    ctx.fillStyle = 'rgba(5, 8, 16, 0.68)';
+    ctx.fillRect(0, 0, w, h);
+
+    const glow = ctx.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.6);
+    glow.addColorStop(0, `${activeColor}24`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+
+    // 4 Corner Crosshairs
+    const drawCross = (cx: number, cy: number) => {
+      ctx.strokeStyle = `${activeColor}88`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 12, cy);
+      ctx.lineTo(cx + 12, cy);
+      ctx.moveTo(cx, cy - 12);
+      ctx.lineTo(cx, cy + 12);
+      ctx.stroke();
+    };
+    drawCross(margin, margin);
+    drawCross(w - margin, margin);
+    drawCross(margin, h - margin);
+    drawCross(w - margin, h - margin);
+
+    // Top Telemetry Header
+    if (config.showTitleHeader !== false) {
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 12;
+      ctx.fillText(`[ TELEMETRY // ${activity.sportType.toUpperCase()} ]`, w / 2, h * 0.065);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `500 ${Math.round(w * 0.016)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText(`POS: ${coordStr}  •  ${activity.date}`, w / 2, h * 0.09);
+
+      ctx.font = `900 ${Math.round(w * 0.056)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 16;
+      ctx.fillText(activity.title, w / 2, h * 0.145);
+      ctx.shadowBlur = 0;
+
+      if (activity.locationCity) {
+        ctx.font = `600 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.fillText(activity.locationCity, w / 2, h * 0.175);
+      }
+    }
+
+    // Center Glowing Route Map
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeConfig = {
+        ...config,
+        accentColor: activeColor,
+        showGlow: true,
+        glowIntensity: 1.0,
+        positions: { ...config.positions, routeMap: { xPercent: 50, yPercent: 44, scale: 0.85 } },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    }
+
+    // Tactical Target Box
+    const hudBoxW = w * 0.88;
+    const hudBoxH = h * 0.13;
+    const hudBoxX = (w - hudBoxW) / 2;
+    const hudBoxY = showSecondary ? h * 0.69 : h * 0.77;
+
+    if (showHero) {
+      ctx.fillStyle = `rgba(10, 15, 26, ${0.82 * cardAlpha})`;
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 14;
+      this.roundRect(ctx, hudBoxX, hudBoxY, hudBoxW, hudBoxH, 14);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText('TARGET DISTANCE', w / 2, hudBoxY + hudBoxH * 0.28);
+
+      ctx.font = `900 ${Math.round(w * 0.088)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 18;
+      ctx.fillText(`${distKm} KM`, w / 2, hudBoxY + hudBoxH * 0.84);
+      ctx.shadowBlur = 0;
+    } else if (config.showHeroStats !== false && metricsList.length > 0) {
+      const fallback = metricsList[0];
+      ctx.fillStyle = `rgba(10, 15, 26, ${0.82 * cardAlpha})`;
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 1.5;
+      this.roundRect(ctx, hudBoxX, hudBoxY, hudBoxW, hudBoxH, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText(`PRIMARY // ${fallback.label}`, w / 2, hudBoxY + hudBoxH * 0.28);
+
+      ctx.font = `900 ${Math.round(w * 0.082)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`${fallback.val}${fallback.unit ? ' ' + fallback.unit : ''}`, w / 2, hudBoxY + hudBoxH * 0.84);
+    }
+
+    // Bottom Row of Tech Chips
+    if (showSecondary && metricsList.length > 0) {
+      const chipW = (hudBoxW - (metricsList.length - 1) * 8) / metricsList.length;
+      metricsList.forEach((sc, i) => {
+        const cx = hudBoxX + i * (chipW + 8);
+        const cy = showHero ? h * 0.84 : h * 0.85;
+        const chH = h * 0.075;
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.05 * cardAlpha})`;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, cx, cy, chipW, chH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = `600 ${Math.max(10, Math.round(w * 0.016))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(sc.label, cx + chipW / 2, cy + chH * 0.36);
+
+        const valFont = Math.min(Math.round(w * 0.034), Math.round(chipW * 0.2));
+        ctx.font = `800 ${valFont}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`${sc.val}${sc.unit ? ' ' + sc.unit : ''}`, cx + chipW / 2, cy + chH * 0.82);
+      });
+    }
+
+    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
+      this.drawHrZones(activity, w, h, config);
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 9: FINISHER BADGE (Marathon Medal Stamp)
+  // ============================================================
+  private renderFinisherBadge(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, showHero, metricsList, showSecondary, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor;
+
+    this.drawBackground(w, h, config);
+
+    // Vignette
+    const vig = ctx.createRadialGradient(w / 2, h * 0.46, w * 0.15, w / 2, h * 0.46, w * 0.65);
+    vig.addColorStop(0, 'rgba(0,0,0,0.2)');
+    vig.addColorStop(1, 'rgba(6, 10, 18, 0.88)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+
+    // Top Title Lockup
+    if (config.showTitleHeader !== false) {
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`★ OFFICIAL FINISHER • ${activity.date} ★`, w / 2, h * 0.07);
+
+      ctx.font = `900 ${Math.round(w * 0.062)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title, w / 2, h * 0.125);
+      ctx.shadowBlur = 0;
+
+      if (activity.locationCity) {
+        ctx.font = `500 ${Math.round(w * 0.024)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText(activity.locationCity, w / 2, h * 0.158);
+      }
+    }
+
+    // Center Circular Finisher Emblem Badge
+    const badgeCX = w / 2;
+    const badgeCY = h * 0.46;
+    const badgeR = Math.min(w, h) * 0.22;
+
+    // Translucent circular backdrop
+    ctx.fillStyle = `rgba(10, 14, 26, ${0.82 * cardAlpha})`;
+    ctx.beginPath();
+    ctx.arc(badgeCX, badgeCY, badgeR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer ring
+    ctx.strokeStyle = activeColor;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = activeColor;
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(badgeCX, badgeCY, badgeR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Inner dashed ring
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.arc(badgeCX, badgeCY, badgeR - 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Inside Medal: Metric Display
+    ctx.font = `800 ${Math.round(w * 0.024)}px "JetBrains Mono", monospace`;
+    ctx.fillStyle = activeColor;
+    ctx.fillText(activity.sportType.toUpperCase(), badgeCX, badgeCY - badgeR * 0.4);
+
+    if (showHero) {
+      ctx.font = `900 ${Math.round(w * 0.14)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 12;
+      ctx.fillText(distKm, badgeCX, badgeCY + badgeR * 0.12);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `700 ${Math.round(w * 0.03)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('KILOMETERS', badgeCX, badgeCY + badgeR * 0.42);
+    } else if (metricsList.length > 0) {
+      const primary = metricsList[0];
+      ctx.font = `900 ${Math.round(w * 0.12)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(primary.val, badgeCX, badgeCY + badgeR * 0.12);
+
+      ctx.font = `700 ${Math.round(w * 0.028)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(primary.label + (primary.unit ? ` (${primary.unit})` : ''), badgeCX, badgeCY + badgeR * 0.42);
+    } else {
+      ctx.font = `900 ${Math.round(w * 0.10)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('FINISHER', badgeCX, badgeCY + badgeR * 0.12);
+    }
+
+    ctx.font = `600 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.fillText('✦ ✦ ✦', badgeCX, badgeCY + badgeR * 0.65);
+
+    // Route polyline centered
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeConfig = {
+        ...config,
+        accentColor: activeColor,
+        positions: { ...config.positions, routeMap: { xPercent: 50, yPercent: 46, scale: 0.95 } },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    }
+
+    // Bottom Glass Dock
+    if (showSecondary) {
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      this.drawGlassMetricDock(ctx, w, h, w * 0.06, h * 0.84, w * 0.88, dockH, metricsList, cardAlpha);
+    }
+
+    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
+      this.drawHrZones(activity, w, h, config);
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 10: TICKER TAPE (Cinematic Widescreen Minimal)
+  // ============================================================
+  private renderTickerTape(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, showHero, metricsList } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor;
+    const topBarH = h * 0.14;
+    const btmBarH = h * 0.16;
+    const margin = w * 0.06;
+
+    this.drawBackground(w, h, config);
+
+    // Top Widescreen Letterbox Bar
+    if (config.showTitleHeader !== false) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.94)';
+      ctx.fillRect(0, 0, w, topBarH);
+
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(0, topBarH - 2, w, 2);
+      ctx.shadowBlur = 0;
+
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`${activity.sportType.toUpperCase()} • ${activity.date}`, margin, topBarH * 0.42);
+
+      ctx.font = `900 ${Math.round(w * 0.046)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(activity.title, margin, topBarH * 0.82);
+
+      if (activity.locationCity) {
+        ctx.textAlign = 'right';
+        ctx.font = `500 ${Math.round(w * 0.022)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText(activity.locationCity, w - margin, topBarH * 0.62);
+      }
+      ctx.restore();
+    }
+
+    // Center Route Polyline
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeConfig = {
+        ...config,
+        accentColor: activeColor,
+        positions: { ...config.positions, routeMap: { xPercent: 50, yPercent: 50, scale: 0.9 } },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    }
+
+    // Bottom Single-Line Ticker Bar
+    const tickerParts: string[] = [];
+    if (showHero || config.metrics?.distance !== false) {
+      tickerParts.push(`${distKm} KM`);
+    }
+
+    if (config.showSecondaryStats !== false) {
+      metricsList.forEach((m) => {
+        if (m.label !== 'DIST') {
+          tickerParts.push(`${m.val}${m.unit ? ' ' + m.unit : ''}`);
+        }
+      });
+    }
+
+    if (tickerParts.length > 0) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.94)';
+      ctx.fillRect(0, h - btmBarH, w, btmBarH);
+
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(0, h - btmBarH, w, 2);
+      ctx.shadowBlur = 0;
+
+      ctx.save();
+      const tickerY = h - btmBarH * 0.52;
+      ctx.textAlign = 'center';
+      ctx.font = `800 ${Math.round(w * 0.038)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(tickerParts.join('   •   '), w / 2, tickerY);
+      ctx.restore();
+    }
+
+    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
+      this.drawHrZones(activity, w, h, config);
+    }
+
+    if (config.showWatermark) {
+      ctx.save();
+      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.textAlign = 'center';
+      ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h - btmBarH * 0.18);
+      ctx.restore();
+    }
   }
 
   // ============================================================

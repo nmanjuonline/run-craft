@@ -720,6 +720,8 @@ function setupLayoutTemplates() {
       const layout = (card.getAttribute('data-layout') || 'classic') as OverlayLayoutId;
       currentConfig.layoutId = layout;
       triggerRender();
+      const label = card.querySelector('.ltc-label')?.textContent || layout;
+      showToast(`Selected: ${label} layout`);
     });
   });
 }

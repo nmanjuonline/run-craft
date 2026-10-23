@@ -2306,19 +2306,17 @@ export class CanvasEngine {
       rawText.toUpperCase() === 'RUN·CRAFT' ||
       rawText.toUpperCase() === 'RUN CRAFT';
 
-    const bolt = '⚡ ';
     const part1 = isDefaultBrand ? 'RUN' : rawText;
-    const dot = isDefaultBrand ? '·' : '';
+    const dot = isDefaultBrand ? ' · ' : '';
     const part2 = isDefaultBrand ? 'CRAFT' : '';
 
-    const boltWidth = ctx.measureText(bolt).width;
     const part1Width = ctx.measureText(part1).width;
     const dotWidth = isDefaultBrand ? ctx.measureText(dot).width : 0;
     const part2Width = isDefaultBrand ? ctx.measureText(part2).width : 0;
-    const totalTextWidth = boltWidth + part1Width + dotWidth + part2Width;
+    const totalTextWidth = part1Width + dotWidth + part2Width;
 
-    const padX = Math.round(fontSize * 0.95);
-    const padY = Math.round(fontSize * 0.42);
+    const padX = Math.round(fontSize * 1.15);
+    const padY = Math.round(fontSize * 0.44);
     const pillW = Math.round(totalTextWidth + padX * 2);
     const pillH = Math.round(fontSize + padY * 2);
     const pillX = Math.round((w - pillW) / 2);
@@ -2355,14 +2353,6 @@ export class CanvasEngine {
     const textY = pillY + pillH / 2 + 1;
     let curX = pillX + padX;
 
-    // Bolt in glowing accent color
-    ctx.fillStyle = activeColor;
-    ctx.shadowColor = activeColor;
-    ctx.shadowBlur = 6;
-    ctx.fillText(bolt, curX, textY);
-    ctx.shadowBlur = 0;
-    curX += boltWidth;
-
     // RUN (or custom text) in 100% crisp pure white
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
@@ -2372,7 +2362,7 @@ export class CanvasEngine {
 
     if (isDefaultBrand) {
       // Dot separator
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
       ctx.shadowBlur = 0;
       ctx.fillText(dot, curX, textY);
       curX += dotWidth;

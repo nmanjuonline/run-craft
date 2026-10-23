@@ -863,18 +863,19 @@ export class CanvasEngine {
         // Left Side: Hero Distance Readout
         const heroPadX = 24;
         const heroStartX = consoleX + heroPadX;
-        const maxHeroW = heroW - heroPadX - 28; // Strict clearance: at least 28px before divider
+        const maxHeroW = heroW - heroPadX - 24; // Strict clearance before divider
 
         ctx.textAlign = 'left';
         ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.fillText('// TELEMETRY: DISTANCE //', heroStartX, consoleY + consoleH * 0.28);
 
-        let heroFontSize = Math.min(Math.round(consoleH * 0.44), Math.round(minDim * 0.072));
-        let unitFontSize = Math.max(11, Math.round(heroFontSize * 0.38));
-        const heroGap = Math.round(heroFontSize * 0.12);
+        // Prominent, bold hero distance font
+        let heroFontSize = Math.min(Math.round(consoleH * 0.54), Math.round(minDim * 0.086));
+        let unitFontSize = Math.max(13, Math.round(heroFontSize * 0.36));
+        const heroGap = Math.round(heroFontSize * 0.10);
 
-        // Measure both distKm and KM and scale down to guarantee zero overlap with divider
+        // Measure both distKm and KM and scale down only if wider than available card area
         ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
         let numW = ctx.measureText(distKm).width;
         ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
@@ -882,16 +883,18 @@ export class CanvasEngine {
 
         if (numW + heroGap + unitW > maxHeroW) {
           const scale = maxHeroW / (numW + heroGap + unitW);
-          heroFontSize = Math.max(16, Math.floor(heroFontSize * scale));
-          unitFontSize = Math.max(10, Math.floor(unitFontSize * scale));
-          ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
-          numW = ctx.measureText(distKm).width;
+          heroFontSize = Math.max(28, Math.floor(heroFontSize * scale));
+          unitFontSize = Math.max(12, Math.floor(unitFontSize * scale));
         }
 
-        const heroValY = consoleY + consoleH * 0.76;
+        // Ensure font is set to hero font and measure numW with final heroFontSize
+        ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+        numW = ctx.measureText(distKm).width;
+
+        const heroValY = consoleY + consoleH * 0.78;
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = activeColor;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.fillText(distKm, heroStartX, heroValY);
         ctx.shadowBlur = 0;
 

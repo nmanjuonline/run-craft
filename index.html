@@ -71,7 +71,6 @@
         var installBtn = document.getElementById('pwaBannerInstallBtn');
         var dismissBtn = document.getElementById('pwaBannerDismissBtn');
         var bannerTitle = document.getElementById('pwaBannerTitle');
-        var isInstalling = false;
 
         // 1. Check if already running in standalone PWA mode
         var isStandalone =
@@ -119,7 +118,7 @@
           dismissBtn.addEventListener('click', hideBanner);
         }
 
-        // 4. Capture prompt from early head script or events
+        // 4. Capture prompt and show banner
         if (window.__deferredPrompt) {
           showBanner();
         }
@@ -149,85 +148,44 @@
           }).catch(function() {});
         }
 
-        // 5. Ensure banner displays on non-standalone browsers after brief delay
+        // 5. Show banner after brief delay if prompt is ready and not dismissed
         setTimeout(function() {
-          if (sessionStorage.getItem('rc_pwa_dismissed') !== 'true') {
+          if (sessionStorage.getItem('rc_pwa_dismissed') !== 'true' && window.__deferredPrompt) {
             showBanner();
           }
         }, 400);
 
-        // 6. Direct installation click handler (Exact race-craft handleInstallClick pattern)
+        // 6. Install click handler — MUST be synchronous (no await before prompt.prompt())
+        //    Any async gap before prompt() destroys the user gesture token → NotAllowedError
         if (installBtn) {
-          installBtn.addEventListener('click', async function() {
+          installBtn.addEventListener('click', function() {
             var prompt = window.__deferredPrompt;
+            if (!prompt) return; // prompt not ready; banner should not be visible anyway
 
-            if (!prompt) {
-              isInstalling = true;
-              installBtn.textContent = 'Starting...';
-              installBtn.style.opacity = '0.8';
+            // Null out immediately so double-clicks are safe
+            window.__deferredPrompt = null;
 
-              prompt = await new Promise(function(resolve) {
-                var done = false;
-                var check = function() {
-                  var p = window.__deferredPrompt;
-                  if (p) {
-                    done = true;
-                    resolve(p);
-                    return true;
-                  }
-                  return false;
-                };
-
-                if (check()) return;
-
-                var onReady = function() {
-                  if (!done) {
-                    done = true;
-                    resolve(window.__deferredPrompt || null);
-                  }
-                };
-
-                window.addEventListener('pwa-prompt-ready', onReady, { once: true });
-                window.addEventListener('beforeinstallprompt', function(e) {
-                  if (!done) {
-                    done = true;
-                    resolve(e);
-                  }
-                }, { once: true });
-
-                var interval = setInterval(function() {
-                  if (check()) clearInterval(interval);
-                }, 100);
-
-                setTimeout(function() {
-                  clearInterval(interval);
-                  if (!done) {
-                    done = true;
-                    resolve(window.__deferredPrompt || null);
-                  }
-                }, 3000);
-              });
-
-              isInstalling = false;
-              installBtn.textContent = isStage ? 'Install [Stage]' : 'Install';
-              installBtn.style.opacity = '1';
+            // Call prompt() SYNCHRONOUSLY inside the click handler — critical for user gesture
+            try {
+              prompt.prompt();
+            } catch (err) {
+              // prompt() failed (e.g. already used or gesture expired)
+              // Re-store so the user can try again if beforeinstallprompt re-fires
+              console.warn('[PWA] prompt.prompt() failed:', err);
+              return;
             }
 
-            if (prompt) {
-              try {
-                prompt.prompt();
-                if (prompt.userChoice) {
-                  prompt.userChoice.then(function(choice) {
-                    if (choice && choice.outcome === 'accepted') {
-                      hideBanner();
-                    }
-                  }).catch(function() {});
+            // Wait for the user's choice — hide banner only on 'accepted'
+            // On 'dismissed', leave the banner visible so the user can retry
+            if (prompt.userChoice) {
+              prompt.userChoice.then(function(choice) {
+                if (choice && choice.outcome === 'accepted') {
+                  hideBanner();
                 }
-              } catch (err) {
-                console.warn('Install prompt error:', err);
-              } finally {
-                window.__deferredPrompt = null;
-              }
+                // On dismissed: browser may or may not re-fire beforeinstallprompt.
+                // We do NOT re-show the banner here; 'appinstalled' / next beforeinstallprompt
+                // events will handle subsequent state correctly.
+              }).catch(function() {});
             }
           });
         }

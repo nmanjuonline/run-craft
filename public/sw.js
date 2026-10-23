@@ -1,5 +1,5 @@
 // Service Worker for RunCraft
-const CACHE_NAME = 'runcraft-v18';
+const CACHE_NAME = 'runcraft-v19';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

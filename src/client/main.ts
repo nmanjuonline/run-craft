@@ -461,50 +461,73 @@ function setupToggles() {
   });
 
   // Individual Metric Toggles
+  const ensureMetrics = () => {
+    if (!currentConfig.metrics) {
+      currentConfig.metrics = {
+        distance: true,
+        time: true,
+        pace: true,
+        elevation: true,
+        heartRate: true,
+        cadence: true,
+        calories: true,
+        power: true,
+      };
+    }
+  };
+
   if (toggleMetricDist) {
     toggleMetricDist.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.distance = toggleMetricDist.checked;
       triggerRender();
     });
   }
   if (toggleMetricTime) {
     toggleMetricTime.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.time = toggleMetricTime.checked;
       triggerRender();
     });
   }
   if (toggleMetricPace) {
     toggleMetricPace.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.pace = toggleMetricPace.checked;
       triggerRender();
     });
   }
   if (toggleMetricEle) {
     toggleMetricEle.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.elevation = toggleMetricEle.checked;
       triggerRender();
     });
   }
   if (toggleMetricHr) {
     toggleMetricHr.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.heartRate = toggleMetricHr.checked;
       triggerRender();
     });
   }
   if (toggleMetricCadence) {
     toggleMetricCadence.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.cadence = toggleMetricCadence.checked;
       triggerRender();
     });
   }
   if (toggleMetricCalories) {
     toggleMetricCalories.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.calories = toggleMetricCalories.checked;
       triggerRender();
     });
   }
   if (toggleMetricPower) {
     toggleMetricPower.addEventListener('change', () => {
+      ensureMetrics();
       currentConfig.metrics.power = toggleMetricPower.checked;
       triggerRender();
     });
@@ -720,6 +743,8 @@ function setupLayoutTemplates() {
       const layout = (card.getAttribute('data-layout') || 'classic') as OverlayLayoutId;
       currentConfig.layoutId = layout;
       triggerRender();
+      const label = card.querySelector('.ltc-label')?.textContent || layout;
+      showToast(`Selected: ${label} layout`);
     });
   });
 }

@@ -82,12 +82,15 @@ export type RouteColorMode = 'solid' | 'elevation' | 'pace' | 'heartrate';
 
 /** Visual layout / composition template for the canvas overlay */
 export type OverlayLayoutId =
-  | 'classic'      // Default: title top, route center, stats bottom
-  | 'cinematic'    // Full-bleed photo, hero distance huge center, minimal bottom strip
-  | 'swiss-grid'   // Swiss typography: big number left, data table right
-  | 'neon-cyber'   // Neon glow-heavy, dark base, stats pill across center
-  | 'split-story'  // 9:16 split: photo upper half, solid stats card lower half
-  | 'polaroid';    // White-border frame, vintage film aesthetic
+  | 'classic'            // Default: title top, route center, stats bottom
+  | 'cinematic'          // Full-bleed photo, hero distance huge center, minimal bottom strip
+  | 'swiss-grid'         // Swiss typography: big number left, data table right
+  | 'neon-cyber'         // Neon glow-heavy, dark base, stats pill across center
+  | 'split-story'        // 9:16 split: photo upper half, solid stats card lower half
+  | 'polaroid'           // White-border frame, vintage film aesthetic
+  | 'editorial-heritage' // Tracksmith / Ivy League varsity marathon poster
+  | 'summit-topo'        // Salomon / UTMB mountain trail & elevation profile
+  | 'nordic-minimal';    // District Vision / Scandinavian luxury minimalist
 
 export interface PhotoFilterSettings {
   brightness: number; // 0.5 to 1.5, default 1.0

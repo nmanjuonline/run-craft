@@ -87,8 +87,7 @@ export type OverlayLayoutId =
   | 'swiss-grid'   // Swiss typography: big number left, data table right
   | 'neon-cyber'   // Neon glow-heavy, dark base, stats pill across center
   | 'split-story'  // 9:16 split: photo upper half, solid stats card lower half
-  | 'polaroid'     // White-border frame, vintage film aesthetic
-  | 'generative';  // Procedural dynamic remix: generates random layouts on the fly
+  | 'polaroid';    // White-border frame, vintage film aesthetic
 
 export interface PhotoFilterSettings {
   brightness: number; // 0.5 to 1.5, default 1.0
@@ -134,7 +133,6 @@ export interface OverlayConfig {
   showWatermark: boolean;
   watermarkText: string;
   cardOpacity: number; // 0.1 to 1.0
-  generativeSeed?: number; // Seed for procedural generative layout
   photoFilters: PhotoFilterSettings;
   metrics: MetricVisibilityConfig;
   positions: {

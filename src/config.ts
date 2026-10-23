@@ -55,6 +55,7 @@ export const CONFIG = {
       showWatermark: true,
       watermarkText: 'Crafted with RunCraft',
       cardOpacity: 0.85,
+      transparentBackground: false,
       photoFilters: {
         brightness: 1.0,
         contrast: 1.05,

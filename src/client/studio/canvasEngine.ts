@@ -144,20 +144,22 @@ export class CanvasEngine {
   private renderCinematic(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     this.drawBackground(w, h, config);
 
-    // Heavy cinematic dark letterbox at bottom
-    const btmGrad = this.ctx.createLinearGradient(0, h * 0.45, 0, h);
-    btmGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    btmGrad.addColorStop(0.4, 'rgba(0,0,0,0.55)');
-    btmGrad.addColorStop(1, 'rgba(0,0,0,0.92)');
-    this.ctx.fillStyle = btmGrad;
-    this.ctx.fillRect(0, h * 0.45, w, h * 0.55);
+    if (!config.transparentBackground) {
+      // Heavy cinematic dark letterbox at bottom
+      const btmGrad = this.ctx.createLinearGradient(0, h * 0.45, 0, h);
+      btmGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      btmGrad.addColorStop(0.4, 'rgba(0,0,0,0.55)');
+      btmGrad.addColorStop(1, 'rgba(0,0,0,0.92)');
+      this.ctx.fillStyle = btmGrad;
+      this.ctx.fillRect(0, h * 0.45, w, h * 0.55);
 
-    // Dark top scrim for title
-    const topGrad = this.ctx.createLinearGradient(0, 0, 0, h * 0.28);
-    topGrad.addColorStop(0, 'rgba(0,0,0,0.75)');
-    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    this.ctx.fillStyle = topGrad;
-    this.ctx.fillRect(0, 0, w, h * 0.28);
+      // Dark top scrim for title
+      const topGrad = this.ctx.createLinearGradient(0, 0, 0, h * 0.28);
+      topGrad.addColorStop(0, 'rgba(0,0,0,0.75)');
+      topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      this.ctx.fillStyle = topGrad;
+      this.ctx.fillRect(0, 0, w, h * 0.28);
+    }
 
     // Route polyline: bottom-right quadrant
     if (config.showPolyline && activity.points && activity.points.length > 1) {
@@ -402,13 +404,15 @@ export class CanvasEngine {
     // Dark-toned background
     this.drawBackground(w, h, config);
 
-    // Left-side semi-transparent panel
-    const panelGrad = ctx.createLinearGradient(0, 0, w * 0.55, 0);
-    panelGrad.addColorStop(0, 'rgba(8, 10, 18, 0.92)');
-    panelGrad.addColorStop(0.8, 'rgba(8, 10, 18, 0.72)');
-    panelGrad.addColorStop(1, 'rgba(8, 10, 18, 0)');
-    ctx.fillStyle = panelGrad;
-    ctx.fillRect(0, 0, w, h);
+    if (!config.transparentBackground) {
+      // Left-side semi-transparent panel
+      const panelGrad = ctx.createLinearGradient(0, 0, w * 0.55, 0);
+      panelGrad.addColorStop(0, 'rgba(8, 10, 18, 0.92)');
+      panelGrad.addColorStop(0.8, 'rgba(8, 10, 18, 0.72)');
+      panelGrad.addColorStop(1, 'rgba(8, 10, 18, 0)');
+      ctx.fillStyle = panelGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
 
     ctx.save();
 
@@ -705,22 +709,24 @@ export class CanvasEngine {
       },
     });
 
-    // 2. Deep synthwave backdrop gradient (midnight navy to deep purple)
-    const synthGrad = ctx.createLinearGradient(0, 0, 0, h);
-    synthGrad.addColorStop(0, 'rgba(5, 7, 18, 0.88)');
-    synthGrad.addColorStop(0.35, 'rgba(6, 12, 28, 0.45)');
-    synthGrad.addColorStop(0.65, 'rgba(18, 8, 32, 0.60)');
-    synthGrad.addColorStop(1, 'rgba(4, 5, 14, 0.94)');
-    ctx.fillStyle = synthGrad;
-    ctx.fillRect(0, 0, w, h);
+    if (!config.transparentBackground) {
+      // 2. Deep synthwave backdrop gradient (midnight navy to deep purple)
+      const synthGrad = ctx.createLinearGradient(0, 0, 0, h);
+      synthGrad.addColorStop(0, 'rgba(5, 7, 18, 0.88)');
+      synthGrad.addColorStop(0.35, 'rgba(6, 12, 28, 0.45)');
+      synthGrad.addColorStop(0.65, 'rgba(18, 8, 32, 0.60)');
+      synthGrad.addColorStop(1, 'rgba(4, 5, 14, 0.94)');
+      ctx.fillStyle = synthGrad;
+      ctx.fillRect(0, 0, w, h);
 
-    // 3. Subtle CRT phosphor horizontal scanlines (gentle 1.5px lines, not harsh graph paper)
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-    for (let y = 0; y < h; y += 4) {
-      ctx.fillRect(0, y, w, 1.5);
+      // 3. Subtle CRT phosphor horizontal scanlines (gentle 1.5px lines, not harsh graph paper)
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      for (let y = 0; y < h; y += 4) {
+        ctx.fillRect(0, y, w, 1.5);
+      }
+      ctx.restore();
     }
-    ctx.restore();
 
     // 4. Central neon energy halo
     const glow = ctx.createRadialGradient(w / 2, h * 0.44, 0, w / 2, h * 0.44, w * 0.55);
@@ -1125,20 +1131,22 @@ export class CanvasEngine {
     const ctx = this.ctx;
     const splitY = h * 0.52; // where photo ends and stats begin
 
-    // Draw photo in upper half only
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, w, splitY);
-    ctx.clip();
-    this.drawBackground(w, h * 0.8, config);
-    ctx.restore();
+    if (!config.transparentBackground) {
+      // Draw photo in upper half only
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, w, splitY);
+      ctx.clip();
+      this.drawBackground(w, h * 0.8, config);
+      ctx.restore();
 
-    // Photo-side vignette
-    const pgr = ctx.createLinearGradient(0, splitY * 0.5, 0, splitY);
-    pgr.addColorStop(0, 'rgba(0,0,0,0)');
-    pgr.addColorStop(1, 'rgba(8, 10, 20, 0.9)');
-    ctx.fillStyle = pgr;
-    ctx.fillRect(0, 0, w, splitY);
+      // Photo-side vignette
+      const pgr = ctx.createLinearGradient(0, splitY * 0.5, 0, splitY);
+      pgr.addColorStop(0, 'rgba(0,0,0,0)');
+      pgr.addColorStop(1, 'rgba(8, 10, 20, 0.9)');
+      ctx.fillStyle = pgr;
+      ctx.fillRect(0, 0, w, splitY);
+    }
 
     // Dark stats panel (lower half)
     ctx.fillStyle = '#080a14';
@@ -1325,88 +1333,84 @@ export class CanvasEngine {
   private renderPolaroid(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     const ctx = this.ctx;
 
-    // Off-white vintage paper background
-    ctx.fillStyle = '#f0ece3';
-    ctx.fillRect(0, 0, w, h);
+    if (!config.transparentBackground) {
+      // Off-white vintage paper background
+      ctx.fillStyle = '#f0ece3';
+      ctx.fillRect(0, 0, w, h);
 
-    // Subtle paper texture grain
-    ctx.save();
-    for (let i = 0; i < 2400; i++) {
-      const gx = Math.random() * w;
-      const gy = Math.random() * h;
-      const ga = Math.random() * 0.045;
-      ctx.fillStyle = `rgba(0,0,0,${ga})`;
-      ctx.fillRect(gx, gy, 1.5, 1.5);
+      // Subtle paper texture grain
+      ctx.save();
+      for (let i = 0; i < 2400; i++) {
+        const gx = Math.random() * w;
+        const gy = Math.random() * h;
+        const ga = Math.random() * 0.045;
+        ctx.fillStyle = `rgba(0,0,0,${ga})`;
+        ctx.fillRect(gx, gy, 1.5, 1.5);
+      }
+      ctx.restore();
+
+      // Shadow under frame
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = 30;
+      ctx.shadowOffsetX = 8;
+      ctx.shadowOffsetY = 12;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(frameL - 4, frameT - 4, photoW + 8, photoH + frameB);
+      ctx.restore();
     }
-    ctx.restore();
-
-    // Frame dimensions - polaroid style: equal margins on sides, bigger at bottom
-    const frameL = w * 0.055;
-    const frameR = w * 0.055;
-    const frameT = w * 0.055;
-    const frameB = h * 0.21; // big bottom caption area
-
-    const photoX = frameL;
-    const photoY = frameT;
-    const photoW = w - frameL - frameR;
-    const photoH = h - frameT - frameB;
-
-    // Shadow under frame
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.25)';
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetX = 8;
-    ctx.shadowOffsetY = 12;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(frameL - 4, frameT - 4, photoW + 8, photoH + frameB);
-    ctx.restore();
 
     // White polaroid card
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(frameL - 4, frameT - 4, photoW + 8, photoH + frameB);
 
-    // Photo inside the frame
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(photoX, photoY, photoW, photoH);
-    ctx.clip();
-
-    if (this.currentImage) {
-      const img = this.currentImage;
-      const imgRatio = img.width / img.height;
-      const canvasRatio = photoW / photoH;
-      let dw = photoW, dh = photoH, dx = photoX, dy = photoY;
-      if (imgRatio > canvasRatio) {
-        dh = photoH;
-        dw = dh * imgRatio;
-        dx = photoX - (dw - photoW) / 2;
-      } else {
-        dw = photoW;
-        dh = dw / imgRatio;
-        dy = photoY - (dh - photoH) / 2;
-      }
-      ctx.filter = `brightness(${config.photoFilters.brightness * 100}%) contrast(${config.photoFilters.contrast * 100}%) saturate(${config.photoFilters.saturation * 90}%) sepia(20%)`;
-      ctx.drawImage(img, dx, dy, dw, dh);
+    if (config.transparentBackground) {
+      // Clear out photo aperture to make it a transparent window
+      ctx.clearRect(photoX, photoY, photoW, photoH);
     } else {
-      const grad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
-      grad.addColorStop(0, '#d4c5a0');
-      grad.addColorStop(1, '#b8a880');
-      ctx.fillStyle = grad;
+      // Photo inside the frame
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(photoX, photoY, photoW, photoH);
+      ctx.clip();
+
+      if (this.currentImage) {
+        const img = this.currentImage;
+        const imgRatio = img.width / img.height;
+        const canvasRatio = photoW / photoH;
+        let dw = photoW, dh = photoH, dx = photoX, dy = photoY;
+        if (imgRatio > canvasRatio) {
+          dh = photoH;
+          dw = dh * imgRatio;
+          dx = photoX - (dw - photoW) / 2;
+        } else {
+          dw = photoW;
+          dh = dw / imgRatio;
+          dy = photoY - (dh - photoH) / 2;
+        }
+        ctx.filter = `brightness(${config.photoFilters.brightness * 100}%) contrast(${config.photoFilters.contrast * 100}%) saturate(${config.photoFilters.saturation * 90}%) sepia(20%)`;
+        ctx.drawImage(img, dx, dy, dw, dh);
+      } else {
+        const grad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
+        grad.addColorStop(0, '#d4c5a0');
+        grad.addColorStop(1, '#b8a880');
+        ctx.fillStyle = grad;
+        ctx.fillRect(photoX, photoY, photoW, photoH);
+      }
+
+      // Film vignette effect over photo
+      const vig = ctx.createRadialGradient(
+        photoX + photoW / 2, photoY + photoH / 2, photoH * 0.25,
+        photoX + photoW / 2, photoY + photoH / 2, photoH * 0.72
+      );
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.42)');
+      ctx.filter = 'none';
+      ctx.fillStyle = vig;
       ctx.fillRect(photoX, photoY, photoW, photoH);
+
+      ctx.restore();
     }
-
-    // Film vignette effect over photo
-    const vig = ctx.createRadialGradient(
-      photoX + photoW / 2, photoY + photoH / 2, photoH * 0.25,
-      photoX + photoW / 2, photoY + photoH / 2, photoH * 0.72
-    );
-    vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,0,0,0.42)');
-    ctx.filter = 'none';
-    ctx.fillStyle = vig;
-    ctx.fillRect(photoX, photoY, photoW, photoH);
-
-    ctx.restore();
 
     // Route overlay inside photo
     if (config.showPolyline && activity.points && activity.points.length > 1) {
@@ -1591,6 +1595,7 @@ export class CanvasEngine {
   // ============================================================
 
   private drawBackground(w: number, h: number, config: OverlayConfig) {
+    if (config.transparentBackground) return;
     const ctx = this.ctx;
     const filters = config.photoFilters;
 
@@ -1633,6 +1638,7 @@ export class CanvasEngine {
   }
 
   private drawAtmosphere(w: number, h: number, config: OverlayConfig) {
+    if (config.transparentBackground) return;
     const ctx = this.ctx;
     const v = config.photoFilters.vignette;
     if (v <= 0) return;
@@ -2448,18 +2454,20 @@ export class CanvasEngine {
       },
     });
 
-    // 2. Subtle top and bottom vignettes for editorial contrast
-    const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.32);
-    topGrad.addColorStop(0, 'rgba(10, 12, 18, 0.78)');
-    topGrad.addColorStop(1, 'rgba(10, 12, 18, 0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, w, h * 0.32);
+    if (!config.transparentBackground) {
+      // 2. Subtle top and bottom vignettes for editorial contrast
+      const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.32);
+      topGrad.addColorStop(0, 'rgba(10, 12, 18, 0.78)');
+      topGrad.addColorStop(1, 'rgba(10, 12, 18, 0)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, w, h * 0.32);
 
-    const btmGrad = ctx.createLinearGradient(0, h * 0.60, 0, h);
-    btmGrad.addColorStop(0, 'rgba(10, 12, 18, 0)');
-    btmGrad.addColorStop(1, 'rgba(10, 12, 18, 0.88)');
-    ctx.fillStyle = btmGrad;
-    ctx.fillRect(0, h * 0.60, w, h * 0.40);
+      const btmGrad = ctx.createLinearGradient(0, h * 0.60, 0, h);
+      btmGrad.addColorStop(0, 'rgba(10, 12, 18, 0)');
+      btmGrad.addColorStop(1, 'rgba(10, 12, 18, 0.88)');
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.60, w, h * 0.40);
+    }
 
     ctx.save();
 
@@ -2647,19 +2655,21 @@ export class CanvasEngine {
       },
     });
 
-    // 2. High-contrast alpine top and bottom letterbox scrims
-    const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.28);
-    topGrad.addColorStop(0, 'rgba(8, 12, 18, 0.85)');
-    topGrad.addColorStop(1, 'rgba(8, 12, 18, 0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, w, h * 0.28);
+    if (!config.transparentBackground) {
+      // 2. High-contrast alpine top and bottom letterbox scrims
+      const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.28);
+      topGrad.addColorStop(0, 'rgba(8, 12, 18, 0.85)');
+      topGrad.addColorStop(1, 'rgba(8, 12, 18, 0)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, w, h * 0.28);
 
-    const btmGrad = ctx.createLinearGradient(0, h * 0.55, 0, h);
-    btmGrad.addColorStop(0, 'rgba(8, 12, 18, 0)');
-    btmGrad.addColorStop(0.4, 'rgba(8, 12, 18, 0.75)');
-    btmGrad.addColorStop(1, 'rgba(8, 12, 18, 0.95)');
-    ctx.fillStyle = btmGrad;
-    ctx.fillRect(0, h * 0.55, w, h * 0.45);
+      const btmGrad = ctx.createLinearGradient(0, h * 0.55, 0, h);
+      btmGrad.addColorStop(0, 'rgba(8, 12, 18, 0)');
+      btmGrad.addColorStop(0.4, 'rgba(8, 12, 18, 0.75)');
+      btmGrad.addColorStop(1, 'rgba(8, 12, 18, 0.95)');
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.55, w, h * 0.45);
+    }
 
     ctx.save();
 
@@ -2884,18 +2894,20 @@ export class CanvasEngine {
       },
     });
 
-    // 2. Feather-light top and bottom scrims
-    const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.22);
-    topGrad.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
-    topGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, w, h * 0.22);
+    if (!config.transparentBackground) {
+      // 2. Feather-light top and bottom scrims
+      const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.22);
+      topGrad.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
+      topGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, w, h * 0.22);
 
-    const btmGrad = ctx.createLinearGradient(0, h * 0.65, 0, h);
-    btmGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    btmGrad.addColorStop(1, 'rgba(0, 0, 0, 0.82)');
-    ctx.fillStyle = btmGrad;
-    ctx.fillRect(0, h * 0.65, w, h * 0.35);
+      const btmGrad = ctx.createLinearGradient(0, h * 0.65, 0, h);
+      btmGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      btmGrad.addColorStop(1, 'rgba(0, 0, 0, 0.82)');
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.65, w, h * 0.35);
+    }
 
     ctx.save();
 

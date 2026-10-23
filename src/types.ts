@@ -136,6 +136,7 @@ export interface OverlayConfig {
   showWatermark: boolean;
   watermarkText: string;
   cardOpacity: number; // 0.1 to 1.0
+  transparentBackground?: boolean; // When true, omit photo and backdrop for transparent overlay export
   photoFilters: PhotoFilterSettings;
   metrics: MetricVisibilityConfig;
   positions: {

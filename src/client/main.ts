@@ -532,6 +532,29 @@ function setupToggles() {
       triggerRender();
     });
   }
+
+  // Transparent Background Overlay Toggle
+  const transparentBgToggle = document.getElementById('transparentBgToggle') as HTMLInputElement | null;
+  const canvasWrapper = document.getElementById('canvasWrapper');
+  const photoFiltersCard = document.getElementById('photoFiltersCard');
+
+  if (transparentBgToggle) {
+    transparentBgToggle.checked = !!currentConfig.transparentBackground;
+    transparentBgToggle.addEventListener('change', () => {
+      currentConfig.transparentBackground = transparentBgToggle.checked;
+      if (transparentBgToggle.checked) {
+        canvasWrapper?.classList.add('is-transparent');
+        photoFiltersCard?.classList.add('photo-controls-disabled');
+        photoDropzone?.classList.add('photo-controls-disabled');
+        showToast('Transparent overlay mode active');
+      } else {
+        canvasWrapper?.classList.remove('is-transparent');
+        photoFiltersCard?.classList.remove('photo-controls-disabled');
+        photoDropzone?.classList.remove('photo-controls-disabled');
+      }
+      triggerRender();
+    });
+  }
 }
 
 function setupMobileTabs() {
@@ -591,7 +614,7 @@ function setupMobileTabs() {
   drawer?.addEventListener('click', (e) => {
     if (drawer.classList.contains('collapsed')) {
       const target = e.target as HTMLElement;
-      if (target.closest('#drawerQuickDownloadBtn')) return;
+      if (target.closest('#drawerQuickDownloadBtn') || target.closest('#drawerQuickOverlayBtn')) return;
       setDrawerCollapsed(false);
     }
   });
@@ -818,13 +841,49 @@ function setupTextEditor() {
 }
 
 function setupExport() {
-  // Download HD Image
+  // Download HD Image (exports current canvas view)
   downloadBtn.addEventListener('click', () => {
+    const isTrans = !!currentConfig.transparentBackground;
+    const cleanTitle = currentActivity.title.toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const link = document.createElement('a');
-    link.download = `runcraft_${currentActivity.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.png`;
-    link.href = canvas.toDataURL('image/png', 0.95);
+    link.download = `runcraft_${isTrans ? 'overlay_' : ''}${cleanTitle}${isTrans ? '_transparent' : ''}.png`;
+    link.href = canvas.toDataURL('image/png', 1.0);
     link.click();
+    showToast(isTrans ? 'Downloaded transparent overlay PNG!' : 'Downloaded HD Image!');
   });
+
+  // Download Transparent Overlay (No background / overlay only)
+  const downloadOverlayBtn = document.getElementById('downloadOverlayBtn');
+  const drawerQuickOverlayBtn = document.getElementById('drawerQuickOverlayBtn');
+
+  function exportTransparentOverlay(e?: Event) {
+    e?.stopPropagation();
+    const cleanTitle = currentActivity.title.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+    if (currentConfig.transparentBackground) {
+      // Already in transparent mode, download directly
+      const link = document.createElement('a');
+      link.download = `runcraft_overlay_${cleanTitle}_transparent.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      link.click();
+      showToast('Exported transparent overlay PNG!');
+      return;
+    }
+
+    // Render transparent overlay temporarily without losing user's photo/state
+    canvasEngine.render(currentActivity, { ...currentConfig, transparentBackground: true });
+    const link = document.createElement('a');
+    link.download = `runcraft_overlay_${cleanTitle}_transparent.png`;
+    link.href = canvas.toDataURL('image/png', 1.0);
+    link.click();
+
+    // Re-render active view
+    canvasEngine.render(currentActivity, currentConfig);
+    showToast('Exported transparent overlay PNG!');
+  }
+
+  downloadOverlayBtn?.addEventListener('click', exportTransparentOverlay);
+  drawerQuickOverlayBtn?.addEventListener('click', exportTransparentOverlay);
 
   // Share to Social (Web Share API)
   shareBtn.addEventListener('click', async () => {

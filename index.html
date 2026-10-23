@@ -232,7 +232,7 @@
         </div>
 
         <!-- Canvas Container -->
-        <div class="canvas-wrapper">
+        <div class="canvas-wrapper" id="canvasWrapper">
           <canvas id="overlayCanvas"></canvas>
         </div>
 
@@ -243,9 +243,14 @@
             Download HD Image
           </button>
 
+          <button id="downloadOverlayBtn" class="btn btn-secondary" title="Export as transparent PNG overlay without background for video editing, CapCut, Premiere, Instagram Stories">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Overlay (No BG)
+          </button>
+
           <button id="shareBtn" class="btn btn-secondary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-            Share to Social
+            Share
           </button>
         </div>
 
@@ -272,6 +277,10 @@
               <button type="button" class="btn-drawer-quick" id="drawerQuickDownloadBtn" title="Download HD Image">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 <span>Save</span>
+              </button>
+              <button type="button" class="btn-drawer-quick" id="drawerQuickOverlayBtn" title="Download Transparent Overlay (No BG)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>No BG</span>
               </button>
               <button type="button" class="drawer-toggle-btn" id="drawerToggleBtn" aria-label="Toggle Controls Sheet">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="drawer-chevron"><polyline points="6 9 12 15 18 9"/></svg>
@@ -412,7 +421,23 @@
             Photo Atmosphere & Filters
           </div>
 
-          <div class="card-glass">
+          <div class="card-glass" style="margin-bottom: 12px;">
+            <div class="toggle-row" style="margin-bottom: 0;">
+              <div>
+                <div class="toggle-label" style="display: flex; align-items: center; gap: 6px;">
+                  <span>Transparent Background</span>
+                  <span class="badge-mini" style="background: rgba(0, 240, 255, 0.16); color: var(--accent-cyan); font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; border: 1px solid rgba(0, 240, 255, 0.3);">OVERLAY</span>
+                </div>
+                <div class="toggle-hint">Hide photo & dark scrims to preview & export transparent PNG for video editors (CapCut, Premiere, Stories)</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="transparentBgToggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="card-glass" id="photoFiltersCard">
             <div class="range-group">
               <div class="range-header">
                 <span>Dark Vignette</span>

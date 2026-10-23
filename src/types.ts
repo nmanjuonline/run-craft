@@ -87,11 +87,7 @@ export type OverlayLayoutId =
   | 'swiss-grid'      // Swiss typography: big number left, data table right
   | 'neon-cyber'      // Neon glow-heavy, dark base, stats pill across center
   | 'split-story'     // 9:16 split: photo upper half, solid stats card lower half
-  | 'polaroid'        // White-border frame, vintage film aesthetic
-  | 'magazine'        // Editorial Magazine: publication header, hero distance, radar route
-  | 'tactical-hud'    // Tactical Cyber HUD: corner crosshairs, telemetry target box, tech chips
-  | 'finisher-badge'  // Finisher Medal: circular emblem badge, achievement stars, bottom dock
-  | 'ticker-tape';    // Cinematic Ticker Tape: widescreen letterbox bars, horizontal single-line ticker
+  | 'polaroid';       // White-border frame, vintage film aesthetic
 
 export interface PhotoFilterSettings {
   brightness: number; // 0.5 to 1.5, default 1.0

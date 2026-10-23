@@ -1759,39 +1759,36 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ---- NEON CYBER thumbnail ---- */
 .ltc-cyber {
-  background: linear-gradient(160deg, #060810 0%, #040608 100%);
+  background: radial-gradient(circle at 50% 40%, #0d172e 0%, #050712 100%);
   position: relative;
   overflow: hidden;
 }
 .ltc-cyber .ltc-grid-lines {
   position: absolute;
   inset: 0;
-  background-image:
-    repeating-linear-gradient(0deg, rgba(200,255,0,0.08) 0px, rgba(200,255,0,0.08) 1px, transparent 1px, transparent 14px),
-    repeating-linear-gradient(90deg, rgba(200,255,0,0.08) 0px, rgba(200,255,0,0.08) 1px, transparent 1px, transparent 14px);
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.4) 0px, rgba(0, 0, 0, 0.4) 1.5px, transparent 1.5px, transparent 3.5px);
 }
 .ltc-cyber .ltc-neon-route {
   position: absolute;
-  top: 20%;
+  top: 24%;
   left: 50%;
   transform: translateX(-50%);
-  width: 65%;
-  height: 28%;
-  clip-path: polygon(5% 80%, 18% 25%, 35% 65%, 52% 18%, 68% 58%, 82% 22%, 97% 72%);
-  background: rgba(200, 255, 0, 0.6);
-  filter: blur(2px);
-  box-shadow: 0 0 12px rgba(200, 255, 0, 0.8);
+  width: 60%;
+  height: 25%;
+  clip-path: polygon(5% 80%, 22% 25%, 38% 65%, 55% 18%, 70% 58%, 82% 22%, 97% 72%);
+  background: #00f0ff;
+  filter: drop-shadow(0 0 6px #00f0ff);
 }
 .ltc-cyber .ltc-cyber-panel {
   position: absolute;
   bottom: 8%;
-  left: 5%;
-  right: 5%;
-  height: 22%;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid var(--accent-lime);
-  box-shadow: 0 0 12px rgba(200, 255, 0, 0.25), inset 0 0 8px rgba(200, 255, 0, 0.05);
-  border-radius: 5px;
+  left: 7%;
+  right: 7%;
+  height: 25%;
+  background: rgba(10, 14, 28, 0.9);
+  border: 1px solid #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+  clip-path: polygon(10% 0, 90% 0, 100% 18%, 100% 82%, 90% 100%, 10% 100%, 0 82%, 0 18%);
 }
 
 /* ---- SPLIT STORY thumbnail ---- */

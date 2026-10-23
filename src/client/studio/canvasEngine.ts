@@ -585,179 +585,321 @@ export class CanvasEngine {
     ctx.restore();
   }
 
+  /** Helper: draw chamfered (cut-corner) cyber polygon */
+  private drawChamferCard(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    chamfer = 14
+  ) {
+    ctx.beginPath();
+    ctx.moveTo(x + chamfer, y);
+    ctx.lineTo(x + w - chamfer, y);
+    ctx.lineTo(x + w, y + chamfer);
+    ctx.lineTo(x + w, y + h - chamfer);
+    ctx.lineTo(x + w - chamfer, y + h);
+    ctx.lineTo(x + chamfer, y + h);
+    ctx.lineTo(x, y + h - chamfer);
+    ctx.lineTo(x, y + chamfer);
+    ctx.closePath();
+  }
+
   // ============================================================
-  // LAYOUT 4: NEON CYBER
-  // Dark mesh, amplified neon route glow, glowing stats pill
+  // LAYOUT 4: NEON CYBER (REIMAGINED)
+  // High-voltage cyberpunk cockpit: CRT scanlines, dual-neon glow,
+  // chamfered telemetry cards, corner HUD brackets, dynamic metrics
   // ============================================================
   private renderNeonCyber(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
     const ctx = this.ctx;
+    const { distKm, coordStr, showHero, metricsList, showSecondary, cardAlpha } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#00f0ff';
+    const secondaryNeon = activeColor === '#c8ff00' ? '#00f0ff' : (activeColor === '#00f0ff' ? '#ff007f' : '#00f0ff');
+    const margin = w * 0.055;
 
-    // Draw photo with aggressive darkening
-    this.drawBackground(w, h, { ...config, photoFilters: { ...config.photoFilters, brightness: config.photoFilters.brightness * 0.6 } });
+    // 1. Draw photo with atmospheric cyberpunk color grading
+    this.drawBackground(w, h, {
+      ...config,
+      photoFilters: {
+        ...config.photoFilters,
+        brightness: config.photoFilters.brightness * 0.65,
+        contrast: config.photoFilters.contrast * 1.25,
+        saturation: config.photoFilters.saturation * 1.15,
+      },
+    });
 
-    // Dark mesh overlay
-    ctx.fillStyle = 'rgba(6, 8, 16, 0.55)';
+    // 2. Deep synthwave backdrop gradient (midnight navy to deep purple)
+    const synthGrad = ctx.createLinearGradient(0, 0, 0, h);
+    synthGrad.addColorStop(0, 'rgba(5, 7, 18, 0.88)');
+    synthGrad.addColorStop(0.35, 'rgba(6, 12, 28, 0.45)');
+    synthGrad.addColorStop(0.65, 'rgba(18, 8, 32, 0.60)');
+    synthGrad.addColorStop(1, 'rgba(4, 5, 14, 0.94)');
+    ctx.fillStyle = synthGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Neon scan-line grid
+    // 3. Subtle CRT phosphor horizontal scanlines (gentle 1.5px lines, not harsh graph paper)
     ctx.save();
-    ctx.strokeStyle = `${config.accentColor}18`;
-    ctx.lineWidth = 1;
-    const gridStep = Math.round(w * 0.08);
-    for (let x = 0; x < w; x += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-    for (let y = 0; y < h; y += gridStep) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    for (let y = 0; y < h; y += 4) {
+      ctx.fillRect(0, y, w, 1.5);
     }
     ctx.restore();
 
-    // Radial neon glow center
-    const glow = ctx.createRadialGradient(w / 2, h * 0.42, 0, w / 2, h * 0.42, w * 0.55);
-    glow.addColorStop(0, `${config.accentColor}22`);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    // 4. Central neon energy halo
+    const glow = ctx.createRadialGradient(w / 2, h * 0.44, 0, w / 2, h * 0.44, w * 0.55);
+    glow.addColorStop(0, `${activeColor}22`);
+    glow.addColorStop(0.6, `${secondaryNeon}12`);
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
 
     ctx.save();
 
-    // Route polyline: center
+    // 5. Corner Cyber HUD Brackets [ ┌ ┐ └ ┘ ]
+    const bracketSize = Math.max(14, Math.round(w * 0.026));
+    const drawBracket = (bx: number, by: number, dirX: 1 | -1, dirY: 1 | -1) => {
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(bx + dirX * bracketSize, by);
+      ctx.lineTo(bx, by);
+      ctx.lineTo(bx, by + dirY * bracketSize);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    };
+
+    drawBracket(margin, margin, 1, 1);
+    drawBracket(w - margin, margin, -1, 1);
+    drawBracket(margin, h - margin, 1, -1);
+    drawBracket(w - margin, h - margin, -1, -1);
+
+    // 6. Top Cyber Header Lockup
+    if (config.showTitleHeader !== false) {
+      // System tag & coordinates
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 10;
+      ctx.fillText(`SYS.ONLINE // ${activity.sportType.toUpperCase()}`, margin + 8, h * 0.065);
+      ctx.shadowBlur = 0;
+
+      ctx.textAlign = 'right';
+      ctx.font = `500 ${Math.round(w * 0.017)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText(coordStr, w - margin - 8, h * 0.065);
+
+      // Neon glowing title
+      ctx.font = `900 ${Math.round(w * 0.062)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title, margin + 8, h * 0.125);
+      ctx.shadowBlur = 0;
+
+      // City / Gear / Shoe tag pill
+      const subtitleText = activity.locationCity
+        ? `📍 ${activity.locationCity}  •  ${activity.date}`
+        : `⚡ ${activity.sportType.toUpperCase()} SECTOR  •  ${activity.date}`;
+
+      ctx.font = `600 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = secondaryNeon;
+      ctx.shadowColor = secondaryNeon;
+      ctx.shadowBlur = 8;
+      ctx.fillText(subtitleText, margin + 8, h * 0.158);
+      ctx.shadowBlur = 0;
+    }
+
+    // 7. Center Neon Route Polyline
     if (config.showPolyline && activity.points && activity.points.length > 1) {
       const routeConfig = {
         ...config,
+        accentColor: activeColor,
         showGlow: true,
-        glowIntensity: Math.min(1.0, (config.glowIntensity || 0.7) * 1.4),
+        glowIntensity: Math.min(1.0, (config.glowIntensity || 0.7) * 1.5),
         positions: {
           ...config.positions,
-          routeMap: { xPercent: 50, yPercent: 42, scale: 0.9 },
+          routeMap: { xPercent: 50, yPercent: 43, scale: 0.88 },
         },
       };
       this.drawRoutePolyline(activity.points, w, h, routeConfig);
+
+      // Subtle targeting reticle around route
+      ctx.strokeStyle = `${activeColor}28`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(w * 0.18, h * 0.28, w * 0.64, h * 0.30);
     }
 
-    // Top neon tag
-    ctx.font = `700 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
-    ctx.fillStyle = config.accentColor;
-    ctx.textAlign = 'center';
-    ctx.shadowColor = config.accentColor;
-    ctx.shadowBlur = 18;
-    ctx.fillText(`/// ${activity.sportType.toUpperCase()} ///`, w / 2, h * 0.055);
+    // 8. Hero Stat (Distance or fallback metric)
+    const heroBoxW = w * 0.88;
+    const heroBoxH = h * 0.13;
+    const heroBoxX = (w - heroBoxW) / 2;
+    const heroBoxY = showSecondary ? h * 0.68 : h * 0.78;
 
-    ctx.font = `500 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.shadowBlur = 0;
-    ctx.fillText(activity.date + (activity.startTime ? ' @ ' + activity.startTime : ''), w / 2, h * 0.08);
-
-    // Title with neon glow
-    ctx.font = `900 ${Math.round(w * 0.06)}px "Plus Jakarta Sans", sans-serif`;
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = config.accentColor;
-    ctx.shadowBlur = 22;
-    ctx.textAlign = 'center';
-    const titleLines = this.wrapText(ctx, activity.title, w * 0.82);
-    titleLines.slice(0, 2).forEach((line, i) => {
-      ctx.fillText(line, w / 2, h * 0.13 + i * h * 0.065);
-    });
-    ctx.shadowBlur = 0;
-
-    // Central neon stats panel
-    const panelY = h * 0.72;
-    const panelH = h * 0.22;
-    const panelW = w * 0.92;
-    const panelX = (w - panelW) / 2;
-
-    // Glowing panel backdrop
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    ctx.strokeStyle = config.accentColor;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = config.accentColor;
-    ctx.shadowBlur = 18;
-    this.roundRect(ctx, panelX, panelY, panelW, panelH, 16);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Inner neon accent line
-    ctx.fillStyle = config.accentColor;
-    ctx.shadowColor = config.accentColor;
-    ctx.shadowBlur = 8;
-    ctx.fillRect(panelX + 20, panelY + 1.5, panelW - 40, 2);
-    ctx.shadowBlur = 0;
-
-    // Metrics in panel
-    const cyberMetrics = [
-      { label: 'DIST', val: (activity.distanceMeters / 1000).toFixed(2), unit: 'KM' },
-      { label: 'PACE', val: formatPace(activity.avgPaceSecPerKm), unit: '/KM' },
-      { label: 'TIME', val: formatDuration(activity.movingTimeSec), unit: '' },
-      { label: 'ELEV', val: `+${Math.round(activity.elevationGainMeters)}`, unit: 'M' },
-    ];
-
-    const colW = panelW / cyberMetrics.length;
-    cyberMetrics.forEach((m, i) => {
-      const cx = panelX + colW * i + colW / 2;
-
-      ctx.font = `700 ${Math.round(w * 0.019)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      ctx.textAlign = 'center';
+    if (showHero) {
+      // Chamfered cyber card for hero distance
+      ctx.fillStyle = `rgba(10, 14, 28, ${0.85 * cardAlpha})`;
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 16;
+      this.drawChamferCard(ctx, heroBoxX, heroBoxY, heroBoxW, heroBoxH, 16);
+      ctx.fill();
+      ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.fillText(m.label, cx, panelY + panelH * 0.28);
 
-      let valFontSize = Math.min(Math.round(w * 0.052), Math.round(colW * 0.22));
-      ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
-      const valW = ctx.measureText(m.val).width;
-      if (valW > colW * 0.84) {
-        valFontSize = Math.max(12, Math.floor(valFontSize * ((colW * 0.84) / valW)));
-        ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
-      }
-      ctx.fillStyle = config.accentColor;
-      ctx.shadowColor = config.accentColor;
-      ctx.shadowBlur = 12;
-      ctx.fillText(m.val, cx, panelY + panelH * 0.68);
-
-      if (m.unit) {
-        ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.shadowBlur = 0;
-        ctx.fillText(m.unit, cx, panelY + panelH * 0.88);
-      }
-
-      if (i < cyberMetrics.length - 1) {
-        ctx.strokeStyle = `${config.accentColor}44`;
-        ctx.lineWidth = 1;
-        ctx.shadowBlur = 0;
-        ctx.beginPath();
-        ctx.moveTo(panelX + colW * (i + 1), panelY + panelH * 0.18);
-        ctx.lineTo(panelX + colW * (i + 1), panelY + panelH * 0.82);
-        ctx.stroke();
-      }
-    });
-
-    // Secondary stats
-    if (activity.avgHeartRate || activity.avgCadence || activity.calories) {
-      const secParts: string[] = [];
-      if (activity.avgHeartRate) secParts.push(`❤️  ${activity.avgHeartRate} BPM`);
-      if (activity.avgCadence) secParts.push(`⚡ ${activity.avgCadence} SPM`);
-      if (activity.calories) secParts.push(`🔥 ${activity.calories} KCAL`);
-
-      ctx.font = `600 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.textAlign = 'center';
+      // Glowing accent laser strip on top edge
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 10;
+      ctx.fillRect(heroBoxX + 24, heroBoxY, heroBoxW - 48, 2.5);
       ctx.shadowBlur = 0;
-      ctx.fillText(secParts.join('   '), w / 2, panelY + panelH + h * 0.024);
+
+      // Hero label
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText('// TELEMETRY: DISTANCE //', heroBoxX + 22, heroBoxY + heroBoxH * 0.32);
+
+      // Hero numbers
+      ctx.font = `900 ${Math.round(w * 0.092)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 18;
+      ctx.fillText(distKm, heroBoxX + 20, heroBoxY + heroBoxH * 0.84);
+      ctx.shadowBlur = 0;
+
+      const numWidth = ctx.measureText(distKm).width;
+      ctx.font = `800 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 10;
+      ctx.fillText('KM', heroBoxX + 28 + numWidth, heroBoxY + heroBoxH * 0.82);
+      ctx.shadowBlur = 0;
+
+      // Right decorative high-tech bars
+      const barX = heroBoxX + heroBoxW - 32;
+      for (let b = 0; b < 4; b++) {
+        ctx.fillStyle = b === 3 ? `${activeColor}44` : activeColor;
+        ctx.fillRect(barX - b * 10, heroBoxY + heroBoxH * 0.44, 5, heroBoxH * 0.38);
+      }
+    } else if (config.showHeroStats !== false && metricsList.length > 0) {
+      const fallback = metricsList[0];
+      ctx.fillStyle = `rgba(10, 14, 28, ${0.85 * cardAlpha})`;
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 14;
+      this.drawChamferCard(ctx, heroBoxX, heroBoxY, heroBoxW, heroBoxH, 16);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText(`// TELEMETRY: ${fallback.label} //`, heroBoxX + 22, heroBoxY + heroBoxH * 0.32);
+
+      ctx.font = `900 ${Math.round(w * 0.088)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 16;
+      ctx.fillText(fallback.val, heroBoxX + 20, heroBoxY + heroBoxH * 0.84);
+      ctx.shadowBlur = 0;
+
+      if (fallback.unit) {
+        const numWidth = ctx.measureText(fallback.val).width;
+        ctx.font = `800 ${Math.round(w * 0.034)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = activeColor;
+        ctx.fillText(fallback.unit, heroBoxX + 28 + numWidth, heroBoxY + heroBoxH * 0.82);
+      }
+    }
+
+    // 9. Secondary Metrics Cyber Telemetry Dock
+    if (showSecondary && metricsList.length > 0) {
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      const dockW = heroBoxW;
+      const dockX = heroBoxX;
+      const dockY = showHero ? h * 0.83 : h * 0.85;
+
+      ctx.fillStyle = `rgba(12, 16, 30, ${0.78 * cardAlpha})`;
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.28)';
+      ctx.lineWidth = 1.5;
+      this.roundRect(ctx, dockX, dockY, dockW, dockH, 12);
+      ctx.fill();
+      ctx.stroke();
+
+      const colW = dockW / metricsList.length;
+      const minDim = Math.min(w, h);
+      const labelFontSize = Math.max(10, Math.round(minDim * 0.015));
+      const baseValFontSize = Math.min(Math.round(minDim * 0.036), Math.round(colW * 0.17));
+
+      metricsList.forEach((m, i) => {
+        const cx = dockX + colW * i + colW / 2;
+
+        if (i < metricsList.length - 1) {
+          ctx.strokeStyle = `${activeColor}22`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(dockX + colW * (i + 1), dockY + dockH * 0.2);
+          ctx.lineTo(dockX + colW * (i + 1), dockY + dockH * 0.8);
+          ctx.stroke();
+        }
+
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${labelFontSize}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(m.label, cx, dockY + dockH * 0.35);
+
+        let curValSize = baseValFontSize;
+        let curUnitSize = Math.max(9, Math.round(curValSize * 0.52));
+        const unitText = m.unit ? ' ' + m.unit : '';
+
+        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+        let valW = ctx.measureText(m.val).width;
+        ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
+        let unitW = unitText ? ctx.measureText(unitText).width : 0;
+        let totalW = valW + unitW;
+
+        if (totalW > colW * 0.84) {
+          const scale = (colW * 0.84) / totalW;
+          curValSize = Math.max(11, Math.floor(curValSize * scale));
+          curUnitSize = Math.max(8, Math.floor(curUnitSize * scale));
+          ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+          valW = ctx.measureText(m.val).width;
+        }
+
+        const startX = cx - (valW + unitW) / 2;
+        const valY = dockY + dockH * 0.76;
+
+        ctx.textAlign = 'left';
+        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(m.val, startX, valY);
+
+        if (unitText) {
+          ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = activeColor;
+          ctx.fillText(unitText, startX + valW, valY);
+        }
+      });
+    }
+
+    // 10. Heart Rate Zones & Watermark
+    if (config.showHrZones && activity.hrZones && activity.hrZones.length > 0) {
+      this.drawHrZones(activity, w, h, config);
     }
 
     if (config.showWatermark) {
       ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = `${config.accentColor}88`;
+      ctx.fillStyle = `${activeColor}aa`;
       ctx.textAlign = 'center';
-      ctx.shadowColor = config.accentColor;
-      ctx.shadowBlur = 6;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 8;
       ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h * 0.983);
       ctx.shadowBlur = 0;
     }

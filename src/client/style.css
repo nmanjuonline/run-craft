@@ -2105,6 +2105,133 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 2px;
 }
 
+/* ---- IRON STRENGTH thumbnail ---- */
+.ltc-iron {
+  background: linear-gradient(170deg, #111726 0%, #080c14 100%);
+  position: relative;
+}
+.ltc-iron-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 6.5px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--accent-lime);
+  background: rgba(200, 255, 0, 0.14);
+  padding: 1.5px 4px;
+  border-radius: 3px;
+  border: 0.5px solid rgba(200, 255, 0, 0.35);
+}
+.ltc-iron-num {
+  position: absolute;
+  top: 36%;
+  left: 8px;
+  font-size: 20px;
+  font-weight: 900;
+  font-family: var(--font-main);
+  color: #ffffff;
+  line-height: 1;
+}
+.ltc-iron-stats {
+  position: absolute;
+  bottom: 8px;
+  left: 6px;
+  right: 6px;
+  display: flex;
+  gap: 3px;
+}
+.ltc-iron-stats > div {
+  flex: 1;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+/* ---- CROSSFIT WOD thumbnail ---- */
+.ltc-crossfit {
+  background: linear-gradient(160deg, #160c08 0%, #0a0604 100%);
+  position: relative;
+}
+.ltc-cf-header {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  font-size: 7px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+  color: #ff5500;
+}
+.ltc-cf-timer {
+  position: absolute;
+  top: 34%;
+  left: 6px;
+  right: 6px;
+  background: rgba(255, 85, 0, 0.15);
+  border: 1px solid rgba(255, 85, 0, 0.4);
+  border-radius: 3px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+  color: #ffffff;
+  padding: 3px 0;
+}
+.ltc-cf-pulse {
+  position: absolute;
+  bottom: 12px;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #c8ff00 40%, #ff5500 70%, transparent 100%);
+}
+
+/* ---- ATHLETIC CLUB thumbnail ---- */
+.ltc-athletic {
+  background: #0d121c;
+  position: relative;
+}
+.ltc-ath-border {
+  position: absolute;
+  inset: 4px;
+  border: 0.75px solid rgba(232, 220, 196, 0.35);
+  pointer-events: none;
+}
+.ltc-ath-title {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #e8dcc4;
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.ltc-ath-ring {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(200, 255, 0, 0.6);
+  border-top-color: transparent;
+}
+.ltc-ath-stats {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
 /* ==========================================================================
    Gear / Shoe Quick Chips
    ========================================================================== */

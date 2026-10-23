@@ -187,6 +187,14 @@ intervalsRouter.get('/activities', async (req, _env, _params, url) => {
         sportType = 'TrailRun';
       } else if (typeStr.includes('hike')) {
         sportType = 'Hike';
+      } else if (typeStr.includes('weight') || typeStr.includes('strength') || typeStr.includes('gym')) {
+        sportType = 'WeightTraining';
+      } else if (typeStr.includes('crossfit') || typeStr.includes('hiit')) {
+        sportType = 'Crossfit';
+      } else if (typeStr.includes('yoga') || typeStr.includes('pilates')) {
+        sportType = 'Yoga';
+      } else if (typeStr.includes('workout') || typeStr.includes('cardio') || typeStr.includes('training')) {
+        sportType = 'Workout';
       }
 
       return {

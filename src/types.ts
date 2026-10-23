@@ -46,7 +46,20 @@ export interface HeartRateZoneRecord {
   percent: number;
 }
 
-export type ActivityType = 'Run' | 'Ride' | 'TrailRun' | 'Hike' | 'Walk' | 'Workout';
+export type ActivityType =
+  | 'Run'
+  | 'Ride'
+  | 'TrailRun'
+  | 'Hike'
+  | 'Walk'
+  | 'Workout'
+  | 'WeightTraining'
+  | 'Crossfit'
+  | 'Strength'
+  | 'Cardio'
+  | 'HIIT'
+  | 'Yoga'
+  | 'Pilates';
 
 export interface WorkoutActivity {
   id: string;
@@ -65,6 +78,9 @@ export interface WorkoutActivity {
   avgCadence?: number;
   avgPowerWatts?: number;
   calories?: number;
+  totalSets?: number;
+  totalReps?: number;
+  totalVolumeKg?: number;
   locationCity?: string;
   weatherTempC?: number;
   weatherCondition?: string;
@@ -90,7 +106,10 @@ export type OverlayLayoutId =
   | 'polaroid'           // White-border frame, vintage film aesthetic
   | 'editorial-heritage' // Tracksmith / Ivy League varsity marathon poster
   | 'summit-topo'        // Salomon / UTMB mountain trail & elevation profile
-  | 'nordic-minimal';    // District Vision / Scandinavian luxury minimalist
+  | 'nordic-minimal'     // District Vision / Scandinavian luxury minimalist
+  | 'iron-strength'      // Heavy barbell & strength hypertrophy poster with power stats
+  | 'crossfit-wod'       // Functional fitness, digital stopwatch timer & heart rate pulse
+  | 'athletic-club';     // Boutique luxury club aesthetic, circular zone arc & clean typography
 
 export interface PhotoFilterSettings {
   brightness: number; // 0.5 to 1.5, default 1.0

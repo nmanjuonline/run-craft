@@ -37,7 +37,28 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+class SeededRandom {
+  private s: number;
+  constructor(seed: number) {
+    this.s = Math.abs(seed) % 2147483647 || 12345;
+  }
+  next(): number {
+    this.s = (this.s * 16807) % 2147483647;
+    return (this.s - 1) / 2147483646;
+  }
+  pick<T>(arr: readonly T[] | T[]): T {
+    return arr[Math.floor(this.next() * arr.length)];
+  }
+  range(min: number, max: number): number {
+    return min + this.next() * (max - min);
+  }
+  bool(chance = 0.5): boolean {
+    return this.next() < chance;
+  }
+}
+
 export class CanvasEngine {
+  public lastGenerativeArchetype: string = 'Editorial Magazine';
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private currentImage: HTMLImageElement | null = null;
@@ -85,6 +106,9 @@ export class CanvasEngine {
         break;
       case 'polaroid':
         this.renderPolaroid(activity, config, dim.width, dim.height);
+        break;
+      case 'generative':
+        this.renderGenerative(activity, config, dim.width, dim.height);
         break;
       case 'classic':
       default:
@@ -1079,6 +1103,718 @@ export class CanvasEngine {
 
     ctx.restore();
   }
+
+  // ============================================================
+  // LAYOUT 7: GENERATIVE / PROCEDURAL RANDOM LAYOUT
+  // Generates unique, high-contrast layouts dynamically on the fly
+  // ============================================================
+  private renderGenerative(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const rng = new SeededRandom(config.generativeSeed || 12345);
+
+    // Pick 1 of 6 procedural archetypes
+    const archetypes = ['magazine', 'hud', 'stamp', 'brutalist', 'islands', 'minimal'] as const;
+    const archetype = rng.pick(archetypes);
+
+    const archetypeLabels: Record<string, string> = {
+      magazine: 'Editorial Magazine',
+      hud: 'Tactical Cyber HUD',
+      stamp: 'Finisher Medal Badge',
+      brutalist: 'Brutalist Street Poster',
+      islands: 'Modular Glass Islands',
+      minimal: 'Cinematic Ticker Tape',
+    };
+    this.lastGenerativeArchetype = archetypeLabels[archetype] || 'Procedural Layout';
+
+    // Randomize accent color if user didn't explicitly pick one, or keep harmony
+    const vibrantColors = ['#c8ff00', '#00f0ff', '#ff3366', '#ff7700', '#b55fe6', '#ffd700', '#00ff88'];
+    const activeColor = rng.bool(0.3) ? rng.pick(vibrantColors) : config.accentColor;
+
+    // Common activity formatted data
+    const distKm = (activity.distanceMeters / 1000).toFixed(2);
+    const paceStr = formatPace(activity.avgPaceSecPerKm);
+    const timeStr = formatDuration(activity.movingTimeSec);
+
+    let eleGain = activity.elevationGainMeters;
+    if ((eleGain === undefined || eleGain === 0) && activity.points && activity.points.length > 1) {
+      const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
+      if (altitudes.length >= 2) {
+        eleGain = computeRobustElevationGain(altitudes);
+        activity.elevationGainMeters = eleGain;
+      }
+    }
+    const eleStr = eleGain > 0 ? `+${Math.round(eleGain)}` : '0';
+    const hrStr = activity.avgHeartRate ? `${activity.avgHeartRate}` : '—';
+    const subtitleText = activity.locationCity || `${activity.sportType.toUpperCase()} • ${activity.date}`;
+
+    // GPS coordinate string
+    let coordStr = '37.832°N  122.525°W';
+    if (activity.points && activity.points.length > 0) {
+      const p = activity.points[0];
+      coordStr = `${Math.abs(p.lat).toFixed(3)}°${p.lat >= 0 ? 'N' : 'S'}  ${Math.abs(p.lon).toFixed(3)}°${p.lon >= 0 ? 'E' : 'W'}`;
+    }
+
+    const metricsList = [
+      { label: 'PACE', val: paceStr, unit: '/km' },
+      { label: 'TIME', val: timeStr, unit: '' },
+      { label: 'ELEV', val: eleStr, unit: 'm' },
+      { label: 'AVG HR', val: hrStr, unit: 'bpm' },
+    ];
+
+    // Helper: draw reusable glass dock with column dividers
+    const drawGlassDock = (x: number, y: number, dockW: number, dockH: number) => {
+      ctx.fillStyle = 'rgba(12, 16, 26, 0.65)';
+      this.roundRect(ctx, x, y, dockW, dockH, 18);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      const colW = dockW / metricsList.length;
+      const minDim = Math.min(w, h);
+      const labelFontSize = Math.max(11, Math.round(minDim * 0.015));
+      const baseValFontSize = Math.min(Math.round(minDim * 0.036), Math.round(colW * 0.17));
+
+      metricsList.forEach((m, i) => {
+        const cx = x + colW * i + colW / 2;
+
+        if (i < metricsList.length - 1) {
+          const divX = x + colW * (i + 1);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(divX, y + dockH * 0.2);
+          ctx.lineTo(divX, y + dockH * 0.8);
+          ctx.stroke();
+        }
+
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${labelFontSize}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(m.label, cx, y + dockH * 0.35);
+
+        let curValSize = baseValFontSize;
+        let curUnitSize = Math.max(10, Math.round(curValSize * 0.52));
+        const unitText = m.unit ? ' ' + m.unit : '';
+
+        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+        let valW = ctx.measureText(m.val).width;
+        ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
+        let unitW = unitText ? ctx.measureText(unitText).width : 0;
+        let totalW = valW + unitW;
+
+        if (totalW > colW * 0.82) {
+          const scale = (colW * 0.82) / totalW;
+          curValSize = Math.max(12, Math.floor(curValSize * scale));
+          curUnitSize = Math.max(9, Math.floor(curUnitSize * scale));
+          ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+          valW = ctx.measureText(m.val).width;
+        }
+
+        const startX = cx - (valW + unitW) / 2;
+        const valY = y + dockH * 0.76;
+
+        ctx.textAlign = 'left';
+        ctx.font = `800 ${curValSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(m.val, startX, valY);
+
+        if (unitText) {
+          ctx.font = `600 ${curUnitSize}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+          ctx.fillText(unitText, startX + valW, valY);
+        }
+      });
+    };
+
+    // Helper: draw crosshairs
+    const drawCrosshair = (cx: number, cy: number, size = 12) => {
+      ctx.save();
+      ctx.strokeStyle = `${activeColor}88`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - size, cy);
+      ctx.lineTo(cx + size, cy);
+      ctx.moveTo(cx, cy - size);
+      ctx.lineTo(cx, cy + size);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    // ----------------------------------------------------
+    // ARCHETYPE 1: EDITORIAL MAGAZINE
+    // ----------------------------------------------------
+    if (archetype === 'magazine') {
+      this.drawBackground(w, h, config);
+
+      // Deep atmospheric gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(10, 14, 24, 0.85)');
+      grad.addColorStop(0.35, 'rgba(0, 0, 0, 0)');
+      grad.addColorStop(0.65, 'rgba(0, 0, 0, 0.45)');
+      grad.addColorStop(1, 'rgba(10, 14, 24, 0.95)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      const margin = w * 0.06;
+
+      // Top Publication Header
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(`ATHLETIC JOURNAL • ISSUE #${Math.floor(rng.range(10, 99))}`, margin, h * 0.065);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillText(coordStr, w - margin, h * 0.065);
+
+      // Big Title
+      ctx.font = `900 ${Math.round(w * 0.068)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title, margin, h * 0.125);
+      ctx.shadowBlur = 0;
+
+      // Subtitle (City / Gear / Shoe)
+      ctx.font = `500 ${Math.round(w * 0.026)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.fillText(subtitleText, margin, h * 0.158);
+
+      // Left Big Distance Hero
+      ctx.font = `900 ${Math.round(w * 0.22)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 35;
+      ctx.globalAlpha = 0.15;
+      ctx.fillText(distKm, margin - 10, h * 0.58);
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+
+      ctx.font = `900 ${Math.round(w * 0.18)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 24;
+      ctx.fillText(distKm, margin, h * 0.68);
+
+      ctx.font = `700 ${Math.round(w * 0.034)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowBlur = 0;
+      ctx.fillText('KILOMETERS', margin, h * 0.72);
+
+      // Right Side Route in Radar Ring
+      if (config.showPolyline && activity.points && activity.points.length > 1) {
+        const routeConfig = {
+          ...config,
+          accentColor: activeColor,
+          positions: { ...config.positions, routeMap: { xPercent: 74, yPercent: 44, scale: 0.65 } },
+        };
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+
+        // Circular fine-line radar ring
+        ctx.strokeStyle = `${activeColor}44`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(w * 0.74, h * 0.44, w * 0.18, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Bottom Glass Dock
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      drawGlassDock(margin, h * 0.84, w - margin * 2, dockH);
+
+      ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // ARCHETYPE 2: TACTICAL CYBER HUD
+    // ----------------------------------------------------
+    else if (archetype === 'hud') {
+      this.drawBackground(w, h, { ...config, photoFilters: { ...config.photoFilters, brightness: config.photoFilters.brightness * 0.65 } });
+
+      // Dark tactical mesh
+      ctx.fillStyle = 'rgba(5, 8, 16, 0.68)';
+      ctx.fillRect(0, 0, w, h);
+
+      // Radial glow center
+      const glow = ctx.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.6);
+      glow.addColorStop(0, `${activeColor}24`);
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+      const margin = w * 0.055;
+
+      // 4 Corner Crosshairs
+      drawCrosshair(margin, margin, 14);
+      drawCrosshair(w - margin, margin, 14);
+      drawCrosshair(margin, h - margin, 14);
+      drawCrosshair(w - margin, h - margin, 14);
+
+      // Top Telemetry Header
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.textAlign = 'center';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 12;
+      ctx.fillText(`[ TELEMETRY // ${activity.sportType.toUpperCase()} ]`, w / 2, h * 0.065);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `500 ${Math.round(w * 0.016)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText(`POS: ${coordStr}  •  ${activity.date}`, w / 2, h * 0.09);
+
+      // Title
+      ctx.font = `900 ${Math.round(w * 0.056)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 16;
+      ctx.fillText(activity.title, w / 2, h * 0.145);
+      ctx.shadowBlur = 0;
+
+      if (activity.locationCity) {
+        ctx.font = `600 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.fillText(activity.locationCity, w / 2, h * 0.175);
+      }
+
+      // Center Glowing Route Map
+      if (config.showPolyline && activity.points && activity.points.length > 1) {
+        const routeConfig = {
+          ...config,
+          accentColor: activeColor,
+          showGlow: true,
+          glowIntensity: 1.0,
+          positions: { ...config.positions, routeMap: { xPercent: 50, yPercent: 44, scale: 0.85 } },
+        };
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+      }
+
+      // Tactical Distance Box in Center Lower
+      const hudBoxW = w * 0.88;
+      const hudBoxH = h * 0.13;
+      const hudBoxX = (w - hudBoxW) / 2;
+      const hudBoxY = h * 0.69;
+
+      ctx.fillStyle = 'rgba(10, 15, 26, 0.82)';
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 14;
+      this.roundRect(ctx, hudBoxX, hudBoxY, hudBoxW, hudBoxH, 14);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Inside Distance Box
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText('TARGET DISTANCE', w / 2, hudBoxY + hudBoxH * 0.28);
+
+      ctx.font = `900 ${Math.round(w * 0.088)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 18;
+      ctx.fillText(`${distKm} KM`, w / 2, hudBoxY + hudBoxH * 0.84);
+      ctx.shadowBlur = 0;
+
+      // Bottom Row of 3 Tech Chips
+      const subCols = [
+        { label: 'PACE', val: paceStr + '/km' },
+        { label: 'TIME', val: timeStr },
+        { label: 'ELEV', val: eleStr + ' m' },
+      ];
+      const chipW = (hudBoxW - 16) / subCols.length;
+      subCols.forEach((sc, i) => {
+        const cx = hudBoxX + i * (chipW + 8);
+        const cy = h * 0.84;
+        const chH = h * 0.075;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 1;
+        this.roundRect(ctx, cx, cy, chipW, chH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = `600 ${Math.round(w * 0.016)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillText(sc.label, cx + chipW / 2, cy + chH * 0.36);
+
+        ctx.font = `800 ${Math.round(w * 0.034)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(sc.val, cx + chipW / 2, cy + chH * 0.82);
+      });
+
+      ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // ARCHETYPE 3: FINISHER MEDAL BADGE
+    // ----------------------------------------------------
+    else if (archetype === 'stamp') {
+      this.drawBackground(w, h, config);
+
+      // Vignette
+      const vig = ctx.createRadialGradient(w / 2, h * 0.46, w * 0.15, w / 2, h * 0.46, w * 0.65);
+      vig.addColorStop(0, 'rgba(0,0,0,0.2)');
+      vig.addColorStop(1, 'rgba(6, 10, 18, 0.88)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.save();
+
+      // Top Title Lockup
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`★ OFFICIAL FINISHER • ${activity.date} ★`, w / 2, h * 0.07);
+
+      ctx.font = `900 ${Math.round(w * 0.062)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title, w / 2, h * 0.125);
+      ctx.shadowBlur = 0;
+
+      if (activity.locationCity) {
+        ctx.font = `500 ${Math.round(w * 0.024)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText(activity.locationCity, w / 2, h * 0.158);
+      }
+
+      // Center Circular Finisher Emblem Badge
+      const badgeCX = w / 2;
+      const badgeCY = h * 0.46;
+      const badgeR = Math.min(w, h) * 0.22;
+
+      // Dark translucent circular backdrop
+      ctx.fillStyle = 'rgba(10, 14, 26, 0.82)';
+      ctx.beginPath();
+      ctx.arc(badgeCX, badgeCY, badgeR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer ring
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(badgeCX, badgeCY, badgeR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Inner dashed ring
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.arc(badgeCX, badgeCY, badgeR - 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Inside Medal: Distance & Sport
+      ctx.font = `800 ${Math.round(w * 0.024)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(activity.sportType.toUpperCase(), badgeCX, badgeCY - badgeR * 0.4);
+
+      ctx.font = `900 ${Math.round(w * 0.14)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 12;
+      ctx.fillText(distKm, badgeCX, badgeCY + badgeR * 0.12);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `700 ${Math.round(w * 0.03)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('KILOMETERS', badgeCX, badgeCY + badgeR * 0.42);
+
+      ctx.font = `600 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText('✦ ✦ ✦', badgeCX, badgeCY + badgeR * 0.65);
+
+      // Route polyline centered behind or above medal
+      if (config.showPolyline && activity.points && activity.points.length > 1) {
+        const routeConfig = {
+          ...config,
+          accentColor: activeColor,
+          positions: { ...config.positions, routeMap: { xPercent: 50, yPercent: 46, scale: 0.95 } },
+        };
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+      }
+
+      // Bottom Glass Dock
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      drawGlassDock(w * 0.06, h * 0.84, w * 0.88, dockH);
+
+      ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // ARCHETYPE 4: BRUTALIST STREET POSTER
+    // ----------------------------------------------------
+    else if (archetype === 'brutalist') {
+      this.drawBackground(w, h, { ...config, photoFilters: { ...config.photoFilters, contrast: 1.25, saturation: 1.1 } });
+
+      ctx.save();
+      const margin = w * 0.06;
+
+      // Giant Translucent Distance Watermark in background
+      ctx.font = `900 ${Math.round(w * 0.32)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.08;
+      ctx.textAlign = 'left';
+      ctx.fillText(distKm, -10, h * 0.48);
+      ctx.globalAlpha = 1;
+
+      // Solid High-Energy Block for Title Tag
+      const tagW = Math.min(w * 0.82, 540);
+      const tagH = Math.round(h * 0.05);
+      ctx.fillStyle = activeColor;
+      ctx.fillRect(margin, h * 0.07, tagW, tagH);
+
+      ctx.font = `800 ${Math.round(w * 0.024)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'left';
+      ctx.fillText(`/// ${activity.sportType.toUpperCase()} • ${activity.date} ///`, margin + 14, h * 0.07 + tagH * 0.68);
+
+      // Giant Title
+      ctx.font = `900 ${Math.round(w * 0.07)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#000000';
+      ctx.shadowBlur = 24;
+      ctx.fillText(activity.title, margin, h * 0.17);
+      ctx.shadowBlur = 0;
+
+      // Thick Rule
+      ctx.fillStyle = activeColor;
+      ctx.fillRect(margin, h * 0.19, w * 0.88, 4);
+
+      // Huge Bold Inverted Distance Block
+      const heroBlockW = w * 0.54;
+      const heroBlockH = h * 0.14;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(margin, h * 0.22, heroBlockW, heroBlockH);
+      ctx.strokeStyle = activeColor;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(margin, h * 0.22, heroBlockW, heroBlockH);
+
+      ctx.font = `900 ${Math.round(w * 0.092)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`${distKm}`, margin + 18, h * 0.22 + heroBlockH * 0.62);
+
+      ctx.font = `700 ${Math.round(w * 0.026)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('KILOMETERS', margin + 18, h * 0.22 + heroBlockH * 0.88);
+
+      // Route on Right Side
+      if (config.showPolyline && activity.points && activity.points.length > 1) {
+        const routeConfig = {
+          ...config,
+          accentColor: activeColor,
+          positions: { ...config.positions, routeMap: { xPercent: 74, yPercent: 48, scale: 0.8 } },
+        };
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+      }
+
+      // City / Gear / Shoe Bar
+      if (activity.locationCity) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(margin, h * 0.74, w * 0.88, h * 0.05);
+        ctx.font = `700 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillText(`📍 ${activity.locationCity}`, margin + 14, h * 0.74 + h * 0.034);
+      }
+
+      // Bottom Metrics Grid
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      drawGlassDock(margin, h * 0.82, w - margin * 2, dockH);
+
+      ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // ARCHETYPE 5: MODULAR GLASS ISLANDS
+    // ----------------------------------------------------
+    else if (archetype === 'islands') {
+      this.drawBackground(w, h, config);
+
+      ctx.save();
+      const margin = w * 0.06;
+
+      // Island 1: Top-Left Title Card
+      const card1W = w * 0.52;
+      const card1H = h * 0.16;
+      ctx.fillStyle = 'rgba(12, 16, 28, 0.68)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1.5;
+      this.roundRect(ctx, margin, h * 0.06, card1W, card1H, 18);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`${activity.sportType.toUpperCase()} • ${activity.date}`, margin + 18, h * 0.06 + card1H * 0.28);
+
+      ctx.font = `900 ${Math.round(w * 0.046)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      const lines = this.wrapText(ctx, activity.title, card1W - 36);
+      lines.slice(0, 2).forEach((l, idx) => {
+        ctx.fillText(l, margin + 18, h * 0.06 + card1H * 0.62 + idx * h * 0.035);
+      });
+
+      // Island 2: Top-Right Route Mini-Map Card
+      const card2W = w * 0.32;
+      const card2H = h * 0.16;
+      const card2X = w - margin - card2W;
+      ctx.fillStyle = 'rgba(12, 16, 28, 0.68)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1.5;
+      this.roundRect(ctx, card2X, h * 0.06, card2W, card2H, 18);
+      ctx.fill();
+      ctx.stroke();
+
+      if (config.showPolyline && activity.points && activity.points.length > 1) {
+        const routeConfig = {
+          ...config,
+          accentColor: activeColor,
+          positions: { ...config.positions, routeMap: { xPercent: (card2X + card2W / 2) / w * 100, yPercent: (h * 0.06 + card2H / 2) / h * 100, scale: 0.55 } },
+        };
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+      }
+
+      // Island 3: Giant Distance Hero Chip (Lower Left)
+      const card3W = w * 0.88;
+      const card3H = h * 0.14;
+      ctx.fillStyle = 'rgba(12, 16, 28, 0.72)';
+      ctx.strokeStyle = `${activeColor}66`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 18;
+      this.roundRect(ctx, margin, h * 0.66, card3W, card3H, 20);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Inside Distance Chip: Left Distance, Right City/Gear
+      ctx.textAlign = 'left';
+      ctx.font = `900 ${Math.round(w * 0.09)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${distKm} `, margin + 24, h * 0.66 + card3H * 0.68);
+
+      const dValW = ctx.measureText(`${distKm} `).width;
+      ctx.font = `700 ${Math.round(w * 0.032)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('KM', margin + 24 + dValW, h * 0.66 + card3H * 0.68);
+
+      if (activity.locationCity) {
+        ctx.textAlign = 'right';
+        ctx.font = `600 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText(activity.locationCity, w - margin - 24, h * 0.66 + card3H * 0.64);
+      }
+
+      // Island 4: Bottom 4-Column Metric Dock
+      const dockH = Math.max(Math.round(h * 0.088), Math.round(w * 0.09));
+      drawGlassDock(margin, h * 0.83, w * 0.88, dockH);
+
+      ctx.restore();
+    }
+
+    // ----------------------------------------------------
+    // ARCHETYPE 6: CINEMATIC TICKER TAPE
+    // ----------------------------------------------------
+    else {
+      this.drawBackground(w, h, config);
+
+      // Deep Top & Bottom Widescreen Letterbox Bars
+      const topBarH = h * 0.14;
+      const btmBarH = h * 0.16;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.94)';
+      ctx.fillRect(0, 0, w, topBarH);
+      ctx.fillRect(0, h - btmBarH, w, btmBarH);
+
+      // Glowing Accent Border on Top and Bottom Bars
+      ctx.fillStyle = activeColor;
+      ctx.shadowColor = activeColor;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(0, topBarH - 2, w, 2);
+      ctx.fillRect(0, h - btmBarH, w, 2);
+      ctx.shadowBlur = 0;
+
+      ctx.save();
+      const margin = w * 0.06;
+
+      // Top Bar Text
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.round(w * 0.02)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText(`${activity.sportType.toUpperCase()} • ${activity.date}`, margin, topBarH * 0.42);
+
+      ctx.font = `900 ${Math.round(w * 0.046)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(activity.title, margin, topBarH * 0.82);
+
+      if (activity.locationCity) {
+        ctx.textAlign = 'right';
+        ctx.font = `500 ${Math.round(w * 0.022)}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText(activity.locationCity, w - margin, topBarH * 0.62);
+      }
+
+      // Center Route Polyline
+      if (config.showPolyline && activity.points && activity.points.length > 1) {
+        const routeConfig = {
+          ...config,
+          accentColor: activeColor,
+          positions: { ...config.positions, routeMap: { xPercent: 50, yPercent: 50, scale: 0.9 } },
+        };
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+      }
+
+      // Bottom Bar Horizontal Single-Line Ticker
+      const tickerY = h - btmBarH * 0.52;
+      const tickerParts = [
+        `${distKm} KM`,
+        `${paceStr} /km`,
+        `${timeStr}`,
+        `${eleStr} m`,
+        ...(activity.avgHeartRate ? [`${activity.avgHeartRate} bpm`] : []),
+      ];
+
+      ctx.textAlign = 'center';
+      ctx.font = `800 ${Math.round(w * 0.038)}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(tickerParts.join('   •   '), w / 2, tickerY);
+
+      // Watermark
+      if (config.showWatermark) {
+        ctx.font = `500 ${Math.round(w * 0.016)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h - btmBarH * 0.18);
+      }
+
+      ctx.restore();
+    }
+
+    // Common Watermark for non-ticker layouts
+    if (archetype !== 'minimal' && config.showWatermark) {
+      ctx.save();
+      ctx.font = `600 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.textAlign = 'center';
+      ctx.fillText(`⚡ ${config.watermarkText}`, w / 2, h * 0.982);
+      ctx.restore();
+    }
+  }
+
 
   // ============================================================
   // SHARED PRIMITIVES (used by classic & other layouts)

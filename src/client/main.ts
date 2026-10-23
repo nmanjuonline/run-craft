@@ -161,6 +161,12 @@ async function initApp() {
 function triggerRender() {
   if (!canvasEngine) return;
   canvasEngine.render(currentActivity, currentConfig);
+  if (currentConfig.layoutId === 'generative') {
+    const archLabel = document.getElementById('genArchetypeLabel');
+    if (archLabel && canvasEngine.lastGenerativeArchetype) {
+      archLabel.textContent = canvasEngine.lastGenerativeArchetype;
+    }
+  }
 }
 
 function loadBackdropImage(src: string): Promise<void> {
@@ -713,15 +719,58 @@ function setupPalette() {
 
 function setupLayoutTemplates() {
   const cards = document.querySelectorAll<HTMLButtonElement>('.layout-template-card');
+  const genControlBar = document.getElementById('generativeControlBar');
+  const remixBtn = document.getElementById('remixLayoutBtn');
+  const genArchetypeLabel = document.getElementById('genArchetypeLabel');
+
+  function updateGenControlsVisibility() {
+    if (genControlBar) {
+      genControlBar.style.display = currentConfig.layoutId === 'generative' ? 'flex' : 'none';
+    }
+    if (genArchetypeLabel && currentConfig.layoutId === 'generative' && canvasEngine) {
+      genArchetypeLabel.textContent = canvasEngine.lastGenerativeArchetype;
+    }
+  }
+
   cards.forEach((card) => {
     card.addEventListener('click', () => {
       cards.forEach((c) => c.classList.remove('active'));
       card.classList.add('active');
       const layout = (card.getAttribute('data-layout') || 'classic') as OverlayLayoutId;
       currentConfig.layoutId = layout;
+      if (layout === 'generative' && currentConfig.generativeSeed === undefined) {
+        currentConfig.generativeSeed = Math.floor(Math.random() * 1000000) + 1;
+      }
+      updateGenControlsVisibility();
       triggerRender();
+      if (layout === 'generative' && genArchetypeLabel && canvasEngine) {
+        genArchetypeLabel.textContent = canvasEngine.lastGenerativeArchetype;
+      }
     });
   });
+
+  if (remixBtn) {
+    remixBtn.addEventListener('click', () => {
+      // Re-seed procedural randomizer
+      currentConfig.generativeSeed = Math.floor(Math.random() * 10000000) + 1;
+
+      // Micro-animation for dice
+      const dice = remixBtn.querySelector('.remix-dice');
+      if (dice) {
+        dice.classList.remove('dice-spinning');
+        void (dice as HTMLElement).offsetWidth; // trigger reflow
+        dice.classList.add('dice-spinning');
+      }
+
+      triggerRender();
+      if (genArchetypeLabel && canvasEngine) {
+        genArchetypeLabel.textContent = canvasEngine.lastGenerativeArchetype;
+      }
+      showToast(`🎲 Generated: ${canvasEngine?.lastGenerativeArchetype || 'Procedural Layout'}`);
+    });
+  }
+
+  updateGenControlsVisibility();
 }
 
 const availableGears: string[] = ['Salomon S/Lab', 'Nike Vaporfly 3', 'Trek Emonda SLR 9'];

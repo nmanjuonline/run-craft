@@ -1904,6 +1904,124 @@ input[type="range"]::-webkit-slider-thumb {
   background: rgba(0, 0, 0, 0.35);
 }
 
+/* ---- EDITORIAL HERITAGE thumbnail ---- */
+.ltc-heritage {
+  background: radial-gradient(circle at 50% 35%, #192231 0%, #0c111a 100%);
+  position: relative;
+}
+.ltc-heritage-border {
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(220, 205, 175, 0.4);
+  pointer-events: none;
+}
+.ltc-heritage-kicker {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #dccdaf;
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.ltc-heritage-dist {
+  position: absolute;
+  top: 32%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  line-height: 1;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+}
+.ltc-heritage-rule {
+  position: absolute;
+  bottom: 14px;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #dccdaf 50%, transparent);
+}
+
+/* ---- SUMMIT TOPO thumbnail ---- */
+.ltc-summit {
+  background: linear-gradient(170deg, #18232c 0%, #0c1218 100%);
+  position: relative;
+  overflow: hidden;
+}
+.ltc-summit-peak {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ff6b35;
+  font-family: var(--font-mono);
+}
+.ltc-summit-spark {
+  position: absolute;
+  top: 32%;
+  left: 8%;
+  right: 8%;
+  height: 24px;
+  background: linear-gradient(180deg, rgba(255, 107, 53, 0.45) 0%, rgba(255, 107, 53, 0.05) 100%);
+  clip-path: polygon(0% 90%, 18% 65%, 32% 80%, 52% 18%, 68% 60%, 82% 28%, 100% 75%, 100% 100%, 0% 100%);
+}
+.ltc-summit-deck {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+/* ---- NORDIC MINIMAL thumbnail ---- */
+.ltc-nordic {
+  background: #0b0d10;
+  position: relative;
+}
+.ltc-nordic-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 7.5px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.5px;
+}
+.ltc-nordic-num {
+  position: absolute;
+  top: 20px;
+  left: 9px;
+  font-size: 24px;
+  font-weight: 300;
+  font-family: var(--font-main);
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+.ltc-nordic-ticker {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
 /* ==========================================================================
    Gear / Shoe Quick Chips
    ========================================================================== */

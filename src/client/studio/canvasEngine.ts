@@ -86,6 +86,15 @@ export class CanvasEngine {
       case 'polaroid':
         this.renderPolaroid(activity, config, dim.width, dim.height);
         break;
+      case 'editorial-heritage':
+        this.renderEditorialHeritage(activity, config, dim.width, dim.height);
+        break;
+      case 'summit-topo':
+        this.renderSummitTopo(activity, config, dim.width, dim.height);
+        break;
+      case 'nordic-minimal':
+        this.renderNordicMinimal(activity, config, dim.width, dim.height);
+        break;
 
       case 'classic':
       default:
@@ -2416,5 +2425,586 @@ export class CanvasEngine {
     ctx.lineTo(x, y + r.tl);
     ctx.quadraticCurveTo(x, y, x + r.tl, y);
     ctx.closePath();
+  }
+
+  // ============================================================
+  // LAYOUT 7: EDITORIAL HERITAGE (Tracksmith / Ivy League Varsity)
+  // Timeless print journalism, double fine-line borders, classical serif
+  // numbers, heraldic runner emblem, structured editorial grid
+  // ============================================================
+  private renderEditorialHeritage(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#c8ff00';
+    const minDim = Math.min(w, h);
+
+    // 1. Photo with warm film grade
+    this.drawBackground(w, h, {
+      ...config,
+      photoFilters: {
+        ...config.photoFilters,
+        brightness: config.photoFilters.brightness * 0.95,
+        contrast: config.photoFilters.contrast * 1.08,
+      },
+    });
+
+    // 2. Subtle top and bottom vignettes for editorial contrast
+    const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.32);
+    topGrad.addColorStop(0, 'rgba(10, 12, 18, 0.78)');
+    topGrad.addColorStop(1, 'rgba(10, 12, 18, 0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, w, h * 0.32);
+
+    const btmGrad = ctx.createLinearGradient(0, h * 0.60, 0, h);
+    btmGrad.addColorStop(0, 'rgba(10, 12, 18, 0)');
+    btmGrad.addColorStop(1, 'rgba(10, 12, 18, 0.88)');
+    ctx.fillStyle = btmGrad;
+    ctx.fillRect(0, h * 0.60, w, h * 0.40);
+
+    ctx.save();
+
+    // 3. Classical double fine-line inset border
+    const borderInset = Math.round(w * 0.045);
+    const innerInset = borderInset + 5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(borderInset, borderInset, w - borderInset * 2, h - borderInset * 2);
+
+    ctx.strokeStyle = `${activeColor}44`;
+    ctx.lineWidth = 0.75;
+    ctx.strokeRect(innerInset, innerInset, w - innerInset * 2, h - innerInset * 2);
+
+    // Corner diamond ornaments
+    const drawDiamond = (cx: number, cy: number, size = 4) => {
+      ctx.fillStyle = activeColor;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size);
+      ctx.lineTo(cx + size, cy);
+      ctx.lineTo(cx, cy + size);
+      ctx.lineTo(cx - size, cy);
+      ctx.closePath();
+      ctx.fill();
+    };
+    drawDiamond(borderInset, borderInset);
+    drawDiamond(w - borderInset, borderInset);
+    drawDiamond(borderInset, h - borderInset);
+    drawDiamond(w - borderInset, h - borderInset);
+
+    // 4. Header: Classical track & field category kicker
+    const headY = borderInset + Math.round(h * 0.035);
+    if (config.showTitleHeader) {
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      const kicker = `✦  TRACK & FIELD ARCHIVE  •  N° ${activity.date || '2026'}  ✦`;
+      ctx.fillText(kicker, w / 2, headY);
+
+      // Title in elegant serif typography
+      ctx.font = `700 ${Math.max(18, Math.round(w * 0.048))}px "Playfair Display", "Georgia", serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 12;
+      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w * 0.80);
+      titleLines.slice(0, 2).forEach((line, i) => {
+        ctx.fillText(line, w / 2, headY + h * 0.045 + i * h * 0.05);
+      });
+      ctx.shadowBlur = 0;
+
+      // Subtitle / Location
+      if (activity.locationCity) {
+        ctx.font = `italic 500 ${Math.max(11, Math.round(minDim * 0.018))}px "Georgia", serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.fillText(`Recorded in ${activity.locationCity}  •  ${coordStr}`, w / 2, headY + h * 0.10);
+      }
+    }
+
+    // 5. GPS Route Polyline: centered
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeConfig = {
+        ...config,
+        positions: {
+          ...config.positions,
+          routeMap: { xPercent: 50, yPercent: 44, scale: 0.82 },
+        },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    }
+
+    // 6. Classical Laurel / Rule-Flanked Hero Distance Readout
+    const btmAreaY = h * 0.70;
+    if (showHero) {
+      const heroNumSize = Math.max(26, Math.min(Math.round(h * 0.088), Math.round(w * 0.11)));
+      ctx.textAlign = 'center';
+
+      // Horizontal classical flanking rules
+      const heroY = btmAreaY;
+      ctx.font = `700 ${heroNumSize}px "Playfair Display", "Georgia", serif`;
+      const distNumText = `${distKm} KM`;
+      const numW = ctx.measureText(distNumText).width;
+
+      const ruleW = Math.max(24, Math.round((w * 0.75 - numW) / 2));
+      const leftRuleX = w / 2 - numW / 2 - ruleW - 12;
+      const rightRuleX = w / 2 + numW / 2 + 12;
+
+      ctx.strokeStyle = `${activeColor}88`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(leftRuleX, heroY - heroNumSize * 0.3);
+      ctx.lineTo(leftRuleX + ruleW, heroY - heroNumSize * 0.3);
+      ctx.moveTo(rightRuleX, heroY - heroNumSize * 0.3);
+      ctx.lineTo(rightRuleX + ruleW, heroY - heroNumSize * 0.3);
+      ctx.stroke();
+
+      drawDiamond(leftRuleX, heroY - heroNumSize * 0.3, 3);
+      drawDiamond(rightRuleX + ruleW, heroY - heroNumSize * 0.3, 3);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 10;
+      ctx.fillText(distNumText, w / 2, heroY);
+      ctx.shadowBlur = 0;
+
+      ctx.font = `600 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('OFFICIAL DISTANCE', w / 2, heroY + heroNumSize * 0.32);
+    }
+
+    // 7. Secondary Metrics: Classical Rule-Divided Table
+    if (showSecondary && metricsList.length > 0) {
+      const tableStartY = showHero ? btmAreaY + Math.round(h * 0.08) : btmAreaY - Math.round(h * 0.04);
+      const cellCount = Math.min(metricsList.length, 5);
+      const colW = (w - borderInset * 2 - 32) / cellCount;
+      const startX = borderInset + 16;
+
+      // Top rule
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(startX, tableStartY);
+      ctx.lineTo(startX + colW * cellCount, tableStartY);
+      ctx.stroke();
+
+      metricsList.slice(0, cellCount).forEach((m, idx) => {
+        const cx = startX + idx * colW + colW / 2;
+
+        // Label
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.0125))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
+        ctx.fillText(m.label, cx, tableStartY + Math.round(h * 0.024));
+
+        // Value
+        const valFontSize = Math.max(12, Math.round(minDim * 0.024));
+        ctx.font = `700 ${valFontSize}px "Playfair Display", "Georgia", serif`;
+        ctx.fillStyle = '#ffffff';
+        const valStr = m.unit ? `${m.val} ${m.unit}` : m.val;
+        ctx.fillText(valStr, cx, tableStartY + Math.round(h * 0.056));
+
+        // Vertical column dividers
+        if (idx < cellCount - 1) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+          ctx.beginPath();
+          ctx.moveTo(startX + (idx + 1) * colW, tableStartY + 4);
+          ctx.lineTo(startX + (idx + 1) * colW, tableStartY + Math.round(h * 0.065));
+          ctx.stroke();
+        }
+      });
+
+      // Bottom rule
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.beginPath();
+      ctx.moveTo(startX, tableStartY + Math.round(h * 0.072));
+      ctx.lineTo(startX + colW * cellCount, tableStartY + Math.round(h * 0.072));
+      ctx.stroke();
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 8: SUMMIT TOPO (Alpine Mountain Trail & Ultra Peak)
+  // Rugged trail runner aesthetic: elevation profile sparkline graph,
+  // summit crest badge, technical coordinates, compass bearing
+  // ============================================================
+  private renderSummitTopo(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#ff6b00';
+    const minDim = Math.min(w, h);
+    const margin = w * 0.055;
+
+    // 1. Photo with deep mountain contrast
+    this.drawBackground(w, h, {
+      ...config,
+      photoFilters: {
+        ...config.photoFilters,
+        brightness: config.photoFilters.brightness * 0.90,
+        contrast: config.photoFilters.contrast * 1.18,
+      },
+    });
+
+    // 2. High-contrast alpine top and bottom letterbox scrims
+    const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.28);
+    topGrad.addColorStop(0, 'rgba(8, 12, 18, 0.85)');
+    topGrad.addColorStop(1, 'rgba(8, 12, 18, 0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, w, h * 0.28);
+
+    const btmGrad = ctx.createLinearGradient(0, h * 0.55, 0, h);
+    btmGrad.addColorStop(0, 'rgba(8, 12, 18, 0)');
+    btmGrad.addColorStop(0.4, 'rgba(8, 12, 18, 0.75)');
+    btmGrad.addColorStop(1, 'rgba(8, 12, 18, 0.95)');
+    ctx.fillStyle = btmGrad;
+    ctx.fillRect(0, h * 0.55, w, h * 0.45);
+
+    ctx.save();
+
+    // 3. Technical Trail Summit Header
+    if (config.showTitleHeader) {
+      ctx.textAlign = 'left';
+      ctx.font = `800 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('▲ ALPINE TRAIL SERIES  //  SUMMIT ARCHIVE', margin, h * 0.065);
+
+      ctx.font = `900 ${Math.max(18, Math.round(w * 0.055))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 16;
+      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.115);
+      ctx.shadowBlur = 0;
+
+      // Compass bearing & altitude tag
+      ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      const elevMeters = Math.round(activity.elevationGainMeters || 0);
+      const trailMeta = `BEARING 284° WNW  •  ▲ +${elevMeters}M VERTICAL  •  ${activity.date}`;
+      ctx.fillText(trailMeta, margin, h * 0.145);
+    }
+
+    // 4. GPS Route Polyline
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeConfig = {
+        ...config,
+        positions: {
+          ...config.positions,
+          routeMap: { xPercent: 50, yPercent: 38, scale: 0.84 },
+        },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    }
+
+    // 5. Elevation Profile Mini Sparkline graph (Under Route)
+    if (activity.points && activity.points.length > 5) {
+      const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
+      if (altitudes.length > 5) {
+        const minAlt = Math.min(...altitudes);
+        const maxAlt = Math.max(...altitudes);
+        const altRange = Math.max(10, maxAlt - minAlt);
+
+        const graphX = margin;
+        const graphW = w - margin * 2;
+        const graphY = h * 0.54;
+        const graphH = Math.round(h * 0.075);
+
+        ctx.beginPath();
+        altitudes.forEach((alt, idx) => {
+          const gx = graphX + (idx / (altitudes.length - 1)) * graphW;
+          const gy = graphY + graphH - ((alt - minAlt) / altRange) * graphH;
+          if (idx === 0) ctx.moveTo(gx, gy);
+          else ctx.lineTo(gx, gy);
+        });
+
+        // Glowing profile line
+        ctx.strokeStyle = activeColor;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = activeColor;
+        ctx.shadowBlur = 8;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Translucent fill under graph
+        ctx.lineTo(graphX + graphW, graphY + graphH);
+        ctx.lineTo(graphX, graphY + graphH);
+        ctx.closePath();
+        const altGrad = ctx.createLinearGradient(0, graphY, 0, graphY + graphH);
+        altGrad.addColorStop(0, `${activeColor}44`);
+        altGrad.addColorStop(1, `${activeColor}00`);
+        ctx.fillStyle = altGrad;
+        ctx.fill();
+
+        // Min & Max altitude tags
+        ctx.textAlign = 'left';
+        ctx.font = `700 10px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillText(`MIN: ${Math.round(minAlt)}m`, graphX, graphY + graphH + 12);
+        ctx.textAlign = 'right';
+        ctx.fillText(`MAX: ${Math.round(maxAlt)}m ▲`, graphX + graphW, graphY + graphH + 12);
+      }
+    }
+
+    // 6. Rugged Summit Telemetry Card
+    const cardY = h * 0.68;
+    const cardW = w - margin * 2;
+    const cardH = Math.max(Math.round(h * 0.155), Math.round(minDim * 0.16));
+
+    // Dark rugged cockpit capsule
+    ctx.fillStyle = 'rgba(14, 18, 28, 0.88)';
+    ctx.strokeStyle = `${activeColor}55`;
+    ctx.lineWidth = 1.5;
+    this.drawChamferCard(ctx, margin, cardY, cardW, cardH, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    // Top laser accent edge
+    ctx.fillStyle = activeColor;
+    ctx.fillRect(margin + 20, cardY, cardW - 40, 2);
+
+    if (showHero && showSecondary && metricsList.length > 0) {
+      // Left: Hero Stat (Distance or Elevation)
+      const heroW = Math.round(cardW * 0.44);
+      const gridX = margin + heroW;
+
+      // Divider line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(gridX, cardY + cardH * 0.18);
+      ctx.lineTo(gridX, cardY + cardH * 0.82);
+      ctx.stroke();
+
+      // Hero readout
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('// TRAIL DISTANCE //', margin + 18, cardY + cardH * 0.28);
+
+      const heroFontSize = Math.min(Math.round(cardH * 0.52), Math.round(heroW * 0.28));
+      ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      const heroY = cardY + cardH * 0.78;
+      ctx.fillText(distKm, margin + 18, heroY);
+      const nW = ctx.measureText(distKm).width;
+
+      ctx.font = `800 ${Math.round(heroFontSize * 0.42)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('KM', margin + 22 + nW, heroY);
+
+      // Right: 2x2 micro grid
+      const cellCount = Math.min(metricsList.length, 4);
+      const cols = cellCount <= 2 ? cellCount : 2;
+      const rows = Math.ceil(cellCount / cols);
+      const colW = (cardW - heroW - 32) / cols;
+      const rowH = (cardH * 0.74) / rows;
+      const startGridY = cardY + cardH * 0.14;
+
+      metricsList.slice(0, 4).forEach((m, idx) => {
+        const colIdx = idx % cols;
+        const rowIdx = Math.floor(idx / cols);
+        const cellX = gridX + 20 + colIdx * colW;
+        const cellY = startGridY + rowIdx * rowH;
+
+        ctx.textAlign = 'left';
+        ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.0125))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillText(m.label, cellX, cellY + rowH * 0.28);
+
+        const valFontSize = Math.min(Math.round(rowH * 0.46), Math.round(colW * 0.22));
+        ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        const valText = m.val;
+        ctx.fillText(valText, cellX, cellY + rowH * 0.74);
+
+        if (m.unit) {
+          const vW = ctx.measureText(valText).width;
+          ctx.font = `600 ${Math.round(valFontSize * 0.54)}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = activeColor;
+          ctx.fillText(m.unit, cellX + vW + 4, cellY + rowH * 0.74);
+        }
+      });
+
+    } else if (showHero) {
+      ctx.textAlign = 'center';
+      ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('▲ PRIMARY TRAIL TELEMETRY ▲', w / 2, cardY + cardH * 0.28);
+
+      const heroFontSize = Math.min(Math.round(cardH * 0.52), Math.round(cardW * 0.2));
+      ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${distKm} KM`, w / 2, cardY + cardH * 0.78);
+
+    } else if (showSecondary && metricsList.length > 0) {
+      const colCount = Math.min(metricsList.length, 4);
+      const colW = (cardW - 32) / colCount;
+      metricsList.slice(0, colCount).forEach((m, idx) => {
+        const cx = margin + 16 + idx * colW + colW / 2;
+        ctx.textAlign = 'center';
+        ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillText(m.label, cx, cardY + cardH * 0.35);
+
+        const valFontSize = Math.min(Math.round(cardH * 0.36), Math.round(colW * 0.22));
+        ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        const unitText = m.unit ? ' ' + m.unit : '';
+        ctx.fillText(m.val + unitText, cx, cardY + cardH * 0.76);
+      });
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 9: NORDIC MINIMAL (District Vision / Scandinavian Chic)
+  // Ultra-clean high-fashion running: razor-thin hairline borders,
+  // generous negative space, floating telemetry ticker, modern geometry
+  // ============================================================
+  private renderNordicMinimal(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const { distKm, coordStr, showHero, metricsList, showSecondary } = this.getMetricsToShow(activity, config);
+    const activeColor = config.accentColor || '#ffffff';
+    const minDim = Math.min(w, h);
+    const margin = w * 0.06;
+
+    // 1. Photo with pristine, high-clarity natural grading
+    this.drawBackground(w, h, {
+      ...config,
+      photoFilters: {
+        ...config.photoFilters,
+        brightness: config.photoFilters.brightness * 0.96,
+        contrast: config.photoFilters.contrast * 1.05,
+      },
+    });
+
+    // 2. Feather-light top and bottom scrims
+    const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.22);
+    topGrad.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
+    topGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, w, h * 0.22);
+
+    const btmGrad = ctx.createLinearGradient(0, h * 0.65, 0, h);
+    btmGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    btmGrad.addColorStop(1, 'rgba(0, 0, 0, 0.82)');
+    ctx.fillStyle = btmGrad;
+    ctx.fillRect(0, h * 0.65, w, h * 0.35);
+
+    ctx.save();
+
+    // 3. Top Header: Clean asymmetric metadata pill
+    if (config.showTitleHeader) {
+      // Sleek top-left coordinates badge
+      ctx.textAlign = 'left';
+      ctx.font = `600 ${Math.max(9, Math.round(minDim * 0.0135))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText(`[ ${coordStr} ]  //  ${activity.date}`, margin, h * 0.065);
+
+      // Stark modern title
+      ctx.font = `800 ${Math.max(18, Math.round(w * 0.052))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 14;
+      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.115);
+      ctx.shadowBlur = 0;
+
+      if (activity.locationCity) {
+        ctx.font = `500 ${Math.max(10, Math.round(minDim * 0.015))}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = activeColor;
+        ctx.fillText(activity.locationCity.toUpperCase(), margin, h * 0.145);
+      }
+    }
+
+    // 4. GPS Route Polyline: delicate hairline route
+    if (config.showPolyline && activity.points && activity.points.length > 1) {
+      const routeConfig = {
+        ...config,
+        positions: {
+          ...config.positions,
+          routeMap: { xPercent: 50, yPercent: 43, scale: 0.82 },
+        },
+      };
+      this.drawRoutePolyline(activity.points, w, h, routeConfig);
+    }
+
+    // 5. Hero Distance Numeral (Modernist stark typography)
+    const btmY = h * 0.72;
+    if (showHero) {
+      const heroSize = Math.max(28, Math.min(Math.round(h * 0.11), Math.round(w * 0.18)));
+      ctx.textAlign = 'left';
+      ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(distKm, margin, btmY);
+      ctx.shadowBlur = 0;
+
+      const numW = ctx.measureText(distKm).width;
+      ctx.font = `700 ${Math.round(heroSize * 0.28)}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = activeColor;
+      ctx.fillText('KM', margin + numW + 10, btmY);
+
+      // Subtle hairline underline
+      ctx.strokeStyle = `${activeColor}44`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(margin, btmY + 8);
+      ctx.lineTo(margin + numW + 48, btmY + 8);
+      ctx.stroke();
+    }
+
+    // 6. Floating Minimalist Telemetry Ticker
+    if (showSecondary && metricsList.length > 0) {
+      const tickerY = showHero ? btmY + Math.round(h * 0.045) : btmY;
+      const tickerW = w - margin * 2;
+      const tickerH = Math.max(38, Math.round(minDim * 0.065));
+
+      // Frosted hairline capsule
+      ctx.fillStyle = 'rgba(12, 16, 24, 0.55)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.lineWidth = 1;
+      this.roundRect(ctx, margin, tickerY, tickerW, tickerH, 12);
+      ctx.fill();
+      ctx.stroke();
+
+      const cellCount = Math.min(metricsList.length, 5);
+      const colW = tickerW / cellCount;
+
+      metricsList.slice(0, cellCount).forEach((m, idx) => {
+        const cx = margin + idx * colW + colW / 2;
+        const cy = tickerY + tickerH / 2 + 1;
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = '#ffffff';
+
+        const unitPart = m.unit ? ` ${m.unit}` : '';
+        ctx.fillText(`${m.label}: ${m.val}${unitPart}`, cx, cy);
+
+        // Hairline column separators
+        if (idx < cellCount - 1) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.beginPath();
+          ctx.moveTo(margin + (idx + 1) * colW, tickerY + tickerH * 0.2);
+          ctx.lineTo(margin + (idx + 1) * colW, tickerY + tickerH * 0.8);
+          ctx.stroke();
+        }
+      });
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    if (config.showWatermark) {
+      this.drawWatermark(w, h, config);
+    }
+
+    ctx.restore();
   }
 }

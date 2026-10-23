@@ -756,9 +756,9 @@ export class CanvasEngine {
 
       if (showHero && showSecondary && metricsList.length > 0) {
         // -------------------------------------------------------------
-        // COMBINED LAYOUT: Hero Distance Left (44%) | Metrics Grid Right (56%)
+        // COMBINED LAYOUT: Hero Distance Left (46%) | Metrics Grid Right (54%)
         // -------------------------------------------------------------
-        const heroW = Math.round(consoleW * 0.44);
+        const heroW = Math.round(consoleW * 0.46);
         const gridW = consoleW - heroW;
         const gridX = consoleX + heroW;
 
@@ -776,57 +776,98 @@ export class CanvasEngine {
         ctx.fillRect(gridX - 1.5, consoleY + consoleH * 0.82, 3, 3);
 
         // Left Side: Hero Distance Readout
+        const heroPadX = 24;
+        const heroStartX = consoleX + heroPadX;
+        const maxHeroW = heroW - heroPadX - 28; // Strict clearance: at least 28px before divider
+
         ctx.textAlign = 'left';
         ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.fillText('// TELEMETRY: DISTANCE //', consoleX + 20, consoleY + consoleH * 0.28);
+        ctx.fillText('// TELEMETRY: DISTANCE //', heroStartX, consoleY + consoleH * 0.28);
 
-        const heroFontSize = Math.min(Math.round(consoleH * 0.52), Math.round(heroW * 0.32));
+        let heroFontSize = Math.min(Math.round(consoleH * 0.44), Math.round(minDim * 0.072));
+        let unitFontSize = Math.max(11, Math.round(heroFontSize * 0.38));
+        const heroGap = Math.round(heroFontSize * 0.12);
+
+        // Measure both distKm and KM and scale down to guarantee zero overlap with divider
         ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+        let numW = ctx.measureText(distKm).width;
+        ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
+        let unitW = ctx.measureText('KM').width;
+
+        if (numW + heroGap + unitW > maxHeroW) {
+          const scale = maxHeroW / (numW + heroGap + unitW);
+          heroFontSize = Math.max(16, Math.floor(heroFontSize * scale));
+          unitFontSize = Math.max(10, Math.floor(unitFontSize * scale));
+          ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+          numW = ctx.measureText(distKm).width;
+        }
+
+        const heroValY = consoleY + consoleH * 0.76;
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = activeColor;
-        ctx.shadowBlur = 16;
-        const heroValY = consoleY + consoleH * 0.78;
-        ctx.fillText(distKm, consoleX + 20, heroValY);
+        ctx.shadowBlur = 12;
+        ctx.fillText(distKm, heroStartX, heroValY);
         ctx.shadowBlur = 0;
 
-        const numWidth = ctx.measureText(distKm).width;
-        ctx.font = `800 ${Math.max(13, Math.round(heroFontSize * 0.42))}px "JetBrains Mono", monospace`;
+        ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
         ctx.fillStyle = activeColor;
-        ctx.fillText('KM', consoleX + 26 + numWidth, heroValY);
+        ctx.fillText('KM', heroStartX + numW + heroGap, heroValY);
 
-        // Right Side: Secondary Metrics Micro-Grid (2 rows x 2 cols or 3 cols)
+        // Right Side: Secondary Metrics Micro-Grid (2 rows x 2 cols or 1 row)
         const cellCount = Math.min(metricsList.length, 4);
         const cols = cellCount <= 2 ? cellCount : 2;
         const rows = Math.ceil(cellCount / cols);
-        const colW = (gridW - 32) / cols;
-        const rowH = (consoleH * 0.72) / rows;
-        const startGridY = consoleY + consoleH * 0.18;
+        const gridPadLeft = 32;
+        const gridPadRight = 20;
+        const colW = (gridW - gridPadLeft - gridPadRight) / cols;
+        const startGridY = consoleY + consoleH * 0.14;
+        const gridAvailH = consoleH * 0.74;
+        const rowH = gridAvailH / rows;
 
         metricsList.slice(0, 4).forEach((m, idx) => {
           const colIdx = idx % cols;
           const rowIdx = Math.floor(idx / cols);
-          const cellX = gridX + 16 + colIdx * colW;
+          const cellX = gridX + gridPadLeft + colIdx * colW;
           const cellY = startGridY + rowIdx * rowH;
 
           // Label
           ctx.textAlign = 'left';
-          ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+          ctx.font = `700 ${Math.max(9, Math.round(minDim * 0.0125))}px "JetBrains Mono", monospace`;
           ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
-          ctx.fillText(m.label, cellX, cellY + rowH * 0.34);
+          ctx.fillText(m.label, cellX, cellY + rowH * 0.28);
 
           // Value + Unit
-          const valFontSize = Math.min(Math.round(rowH * 0.46), Math.round(colW * 0.22));
+          const valText = m.val;
+          const cellValY = cellY + rowH * 0.72;
+          let valFontSize = Math.min(Math.round(rowH * 0.44), Math.round(colW * 0.20), Math.round(minDim * 0.034));
+          let valUnitSize = Math.max(9, Math.round(valFontSize * 0.54));
+
+          ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+          let valW = ctx.measureText(valText).width;
+          let uW = 0;
+          if (m.unit) {
+            ctx.font = `600 ${valUnitSize}px "JetBrains Mono", monospace`;
+            uW = ctx.measureText(' ' + m.unit).width;
+          }
+
+          const maxCellW = colW - 8;
+          if (valW + uW > maxCellW) {
+            const scale = maxCellW / (valW + uW);
+            valFontSize = Math.max(10, Math.floor(valFontSize * scale));
+            valUnitSize = Math.max(8, Math.floor(valUnitSize * scale));
+            ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+            valW = ctx.measureText(valText).width;
+          }
+
           ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
           ctx.fillStyle = '#ffffff';
-          const valText = m.val;
-          ctx.fillText(valText, cellX, cellY + rowH * 0.84);
+          ctx.fillText(valText, cellX, cellValY);
 
           if (m.unit) {
-            const vW = ctx.measureText(valText).width;
-            ctx.font = `600 ${Math.max(9, Math.round(valFontSize * 0.58))}px "JetBrains Mono", monospace`;
+            ctx.font = `600 ${valUnitSize}px "JetBrains Mono", monospace`;
             ctx.fillStyle = activeColor;
-            ctx.fillText(m.unit, cellX + vW + 4, cellY + rowH * 0.84);
+            ctx.fillText(m.unit, cellX + valW + 4, cellValY);
           }
         });
 
@@ -866,7 +907,7 @@ export class CanvasEngine {
         const colW = (consoleW - 32) / colCount;
 
         metricsList.slice(0, colCount).forEach((m, idx) => {
-          const cx = consoleX + 16 + colIdx * colW + colW / 2;
+          const cx = consoleX + 16 + idx * colW + colW / 2;
 
           if (idx > 0) {
             ctx.strokeStyle = `${activeColor}22`;

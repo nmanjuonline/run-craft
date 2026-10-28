@@ -4,8 +4,9 @@
  * Supports 6 distinct layout templates
  */
 
-import type { WorkoutActivity, OverlayConfig, AspectRatio, GeoPoint, SplitRecord } from '../../types.js';
+import type { WorkoutActivity, OverlayConfig, AspectRatio, GeoPoint, SplitRecord, VisionAdaptiveVariant, TitleCreativeStyle } from '../../types.js';
 import { computeRobustElevationGain } from '../../sources/types.js';
+import { ImageAnalyzer, type AdaptiveVisionProfile } from './imageAnalyzer.js';
 
 export interface CanvasDimensions {
   width: number;
@@ -61,6 +62,7 @@ export class CanvasEngine {
   private currentImage: HTMLImageElement | null = null;
   private imageOffset = { x: 0, y: 0 };
   private imageZoom = 1.0;
+  private visionProfile: AdaptiveVisionProfile | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -71,6 +73,23 @@ export class CanvasEngine {
 
   setImage(img: HTMLImageElement | null) {
     this.currentImage = img;
+    if (img && img.complete && (img.naturalWidth > 0 || img.width > 0)) {
+      try {
+        this.visionProfile = ImageAnalyzer.analyze(img);
+      } catch (e) {
+        this.visionProfile = null;
+      }
+    } else {
+      this.visionProfile = null;
+    }
+  }
+
+  setVisionProfile(profile: AdaptiveVisionProfile | null) {
+    this.visionProfile = profile;
+  }
+
+  getVisionProfile(): AdaptiveVisionProfile | null {
+    return this.visionProfile;
   }
 
   setImageTransform(offset: { x: number; y: number }, zoom = 1.0) {
@@ -137,6 +156,9 @@ export class CanvasEngine {
         break;
       case 'athletic-club':
         this.renderAthleticClub(activity, config, dim.width, dim.height);
+        break;
+      case 'vision-adaptive':
+        this.renderVisionAdaptive(activity, config, dim.width, dim.height);
         break;
 
       case 'classic':
@@ -230,19 +252,31 @@ export class CanvasEngine {
     ctx.shadowBlur = 12;
     ctx.fillText(sportLabel, w * 0.06, h * 0.065);
 
-    // Giant activity title
-    ctx.font = `900 ${Math.round(w * 0.068)}px "Plus Jakarta Sans", sans-serif`;
+    // Giant activity title with auto-fit
+    let titleSize = Math.round(w * 0.062);
+    ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
+    const maxTitleW = w * 0.88;
+    let titleW = ctx.measureText(activity.title).width;
+    if (titleW > maxTitleW) {
+      titleSize = Math.max(22, Math.floor(titleSize * (maxTitleW / titleW)));
+      ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
+    }
+    const titleY = h * 0.115;
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0,0,0,0.95)';
     ctx.shadowBlur = 24;
-    ctx.fillText(activity.title, w * 0.06, h * 0.115);
+    ctx.fillText(activity.title, w * 0.06, titleY);
+    ctx.shadowBlur = 0;
 
-    // Location subtitle
+    // Location subtitle strictly below the title with clean clearance
     if (activity.locationCity) {
-      ctx.font = `500 ${Math.round(w * 0.028)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      const subSize = Math.max(14, Math.round(w * 0.025));
+      ctx.font = `500 ${subSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.78)';
       ctx.shadowBlur = 10;
-      ctx.fillText(activity.locationCity, w * 0.06, h * 0.148);
+      const subY = titleY + Math.round(titleSize * 0.45) + subSize + 4;
+      ctx.fillText(activity.locationCity, w * 0.06, subY);
+      ctx.shadowBlur = 0;
     }
 
     const metricsConfig = config.metrics || {
@@ -520,24 +554,31 @@ export class CanvasEngine {
       ctx.font = `700 ${Math.round(w * 0.013)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = config.accentColor;
       ctx.textAlign = 'left';
-      ctx.fillText(activity.sportType.toUpperCase(), margin + 12, h * 0.08);
+      ctx.fillText(activity.sportType.toUpperCase(), margin + 12, h * 0.075);
 
       // Date
       ctx.font = `400 ${Math.round(w * 0.013)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText(activity.date, margin + 12, h * 0.105);
+      ctx.fillText(activity.date, margin + 12, h * 0.098);
 
       // Activity title
-      ctx.font = `800 ${Math.round(w * 0.03)}px "Plus Jakarta Sans", sans-serif`;
+      let landTitleSize = Math.round(w * 0.025);
+      ctx.font = `800 ${landTitleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.8)';
       ctx.shadowBlur = 10;
-      ctx.fillText(activity.title, margin + 12, h * 0.16);
+      const landTitleLines = this.wrapText(ctx, activity.title, leftW - margin - 24).slice(0, 2);
+      let landTitleY = h * 0.132;
+      landTitleLines.forEach((line) => {
+        ctx.fillText(line, margin + 12, landTitleY);
+        landTitleY += Math.round(landTitleSize * 1.16);
+      });
       ctx.shadowBlur = 0;
 
-      // Thick rule
+      // Thick rule placed dynamically below measured title
+      const landRuleY = landTitleY + Math.max(8, Math.round(h * 0.012));
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(margin + 12, h * 0.175, leftW - margin - 12, 2);
+      ctx.fillRect(margin + 12, landRuleY, leftW - margin - 12, 2);
 
       const metricsConfig = config.metrics || {
         distance: true, time: true, pace: true, elevation: true,
@@ -549,14 +590,21 @@ export class CanvasEngine {
       // Big distance
       if (showHero) {
         const distKm = (activity.distanceMeters / 1000).toFixed(2);
-        ctx.font = `900 ${Math.round(w * 0.115)}px "Plus Jakarta Sans", sans-serif`;
+        let heroSize = Math.round(w * 0.095);
+        ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+        let numW = ctx.measureText(distKm).width;
+        if (numW > leftW - margin - 24) {
+          heroSize = Math.max(28, Math.floor(heroSize * ((leftW - margin - 24) / numW)));
+          ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillStyle = config.accentColor;
         ctx.textAlign = 'left';
-        ctx.fillText(distKm, margin + 12, h * 0.34);
+        const heroY = landRuleY + heroSize + Math.round(h * 0.025);
+        ctx.fillText(distKm, margin + 12, heroY);
 
-        ctx.font = `700 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+        ctx.font = `700 ${Math.round(w * 0.018)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.fillText('KILOMETERS', margin + 12, h * 0.375);
+        ctx.fillText('KILOMETERS', margin + 12, heroY + Math.round(heroSize * 0.28));
       }
 
       // Metric grid
@@ -634,20 +682,23 @@ export class CanvasEngine {
       ctx.fillText(activity.sportType.toUpperCase() + '  •  ' + activity.date, margin + 16, h * 0.065);
 
       // Activity title
-      ctx.font = `900 ${Math.round(w * 0.055)}px "Plus Jakarta Sans", sans-serif`;
+      let portTitleSize = Math.max(22, Math.round(w * 0.052));
+      ctx.font = `900 ${portTitleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.9)';
       ctx.shadowBlur = 12;
-      const titleLines = this.wrapText(ctx, activity.title, w * 0.78);
-      titleLines.forEach((line, i) => {
-        ctx.fillText(line, margin + 16, h * 0.108 + i * h * 0.065);
+      const portTitleLines = this.wrapText(ctx, activity.title, w * 0.82).slice(0, 2);
+      let portTitleY = h * 0.105;
+      portTitleLines.forEach((line) => {
+        ctx.fillText(line, margin + 16, portTitleY);
+        portTitleY += Math.round(portTitleSize * 1.18);
       });
       ctx.shadowBlur = 0;
 
-      // Horizontal rule
-      const ruleY = h * 0.18;
+      // Horizontal rule placed dynamically below title
+      const portRuleY = portTitleY + Math.max(10, Math.round(h * 0.015));
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(margin + 16, ruleY, w * 0.85, 2);
+      ctx.fillRect(margin + 16, portRuleY, w * 0.85, 2);
 
       const metricsConfig = config.metrics || {
         distance: true, time: true, pace: true, elevation: true,
@@ -656,17 +707,24 @@ export class CanvasEngine {
       const showHero = config.showHeroStats !== false && metricsConfig.distance !== false;
       const showSecondary = config.showSecondaryStats !== false;
 
-      // Giant distance number
+      // Giant distance number with dynamic scaling and clearance
       if (showHero) {
         const distKm = (activity.distanceMeters / 1000).toFixed(2);
-        ctx.font = `900 ${Math.round(w * 0.24)}px "Plus Jakarta Sans", sans-serif`;
+        let heroSize = Math.min(Math.round(w * 0.22), Math.round(h * 0.15));
+        ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+        let numW = ctx.measureText(distKm).width;
+        if (numW > w * 0.82) {
+          heroSize = Math.max(34, Math.floor(heroSize * ((w * 0.82) / numW)));
+          ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillStyle = config.accentColor;
         ctx.textAlign = 'left';
-        ctx.fillText(distKm, margin, h * 0.37);
+        const portHeroY = portRuleY + heroSize + Math.round(h * 0.02);
+        ctx.fillText(distKm, margin + 16, portHeroY);
 
-        ctx.font = `700 ${Math.round(w * 0.038)}px "JetBrains Mono", monospace`;
+        ctx.font = `700 ${Math.max(12, Math.round(w * 0.034))}px "JetBrains Mono", monospace`;
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fillText('KILOMETERS', margin + 16, h * 0.395);
+        ctx.fillText('KILOMETERS', margin + 16, portHeroY + Math.round(heroSize * 0.25));
       }
 
       // Route polyline: center
@@ -864,12 +922,18 @@ export class CanvasEngine {
       ctx.fillText(coordStr, w - margin - 8, h * 0.065);
 
       // Neon glowing title
-      ctx.font = `900 ${Math.round(w * 0.062)}px "Plus Jakarta Sans", sans-serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.055));
+      ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'left';
       ctx.shadowColor = activeColor;
       ctx.shadowBlur = 18;
-      ctx.fillText(activity.title, margin + 8, h * 0.125);
+      const titleLines = this.wrapText(ctx, activity.title, w - margin * 2 - 16).slice(0, 2);
+      let curTitleY = h * 0.115;
+      titleLines.forEach((line) => {
+        ctx.fillText(line, margin + 8, curTitleY);
+        curTitleY += Math.round(titleSize * 1.18);
+      });
       ctx.shadowBlur = 0;
 
       // City / Gear / Shoe tag pill
@@ -877,11 +941,17 @@ export class CanvasEngine {
         ? `📍 ${activity.locationCity}  •  ${activity.date}`
         : `⚡ ${activity.sportType.toUpperCase()} SECTOR  •  ${activity.date}`;
 
-      ctx.font = `600 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
+      let subSize = Math.max(10, Math.round(w * 0.021));
+      ctx.font = `600 ${subSize}px "JetBrains Mono", monospace`;
+      const sW = ctx.measureText(subtitleText).width;
+      if (sW > w - margin * 2 - 16) {
+        subSize = Math.max(8.5, Math.floor(subSize * ((w - margin * 2 - 16) / sW)));
+        ctx.font = `600 ${subSize}px "JetBrains Mono", monospace`;
+      }
       ctx.fillStyle = secondaryNeon;
       ctx.shadowColor = secondaryNeon;
       ctx.shadowBlur = 8;
-      ctx.fillText(subtitleText, margin + 8, h * 0.158);
+      ctx.fillText(subtitleText, margin + 8, curTitleY + Math.max(4, Math.round(subSize * 0.5)));
       ctx.shadowBlur = 0;
     }
 
@@ -1262,20 +1332,27 @@ export class CanvasEngine {
 
     // Title overlay on photo
     if (config.showTitleHeader) {
-      ctx.font = `900 ${Math.round(w * 0.06)}px "Plus Jakarta Sans", sans-serif`;
+      const kicker = `${activity.sportType.toUpperCase()} • ${activity.date}${activity.locationCity ? ' • ' + activity.locationCity : ''}`;
+      const kickerY = splitY - h * 0.22;
+      ctx.font = `700 ${Math.max(10, Math.round(w * 0.024))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = config.accentColor;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = config.accentColor;
+      ctx.fillText(kicker, margin, kickerY);
+      ctx.shadowBlur = 0;
+
+      let titleSize = Math.max(18, Math.round(w * 0.054));
+      ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'left';
       ctx.shadowColor = 'rgba(0,0,0,0.95)';
       ctx.shadowBlur = 20;
-      const titleLines = this.wrapText(ctx, activity.title, w * 0.82);
-      titleLines.slice(0, 2).forEach((line, i) => {
-        ctx.fillText(line, margin, splitY - h * 0.185 + i * h * 0.07);
+      const titleLines = this.wrapText(ctx, activity.title, w * 0.84).slice(0, 2);
+      let tCurY = kickerY + Math.max(18, Math.round(titleSize * 1.15));
+      titleLines.forEach((line) => {
+        ctx.fillText(line, margin, tCurY);
+        tCurY += Math.round(titleSize * 1.18);
       });
-
-      ctx.font = `600 ${Math.round(w * 0.025)}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = config.accentColor;
-      ctx.shadowBlur = 10;
-      ctx.fillText(activity.sportType.toUpperCase() + ' • ' + activity.date, margin, splitY - h * 0.235);
       ctx.shadowBlur = 0;
     }
 
@@ -1370,10 +1447,18 @@ export class CanvasEngine {
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
       ctx.fillRect(margin, dividerY, w - margin * 2, 1);
 
-      ctx.font = `600 ${Math.round(w * 0.024)}px "Plus Jakarta Sans", sans-serif`;
+      let secFontSize = Math.max(11, Math.round(w * 0.022));
+      const secText = secParts.join('   |   ');
+      ctx.font = `600 ${secFontSize}px "Plus Jakarta Sans", sans-serif`;
+      const sW = ctx.measureText(secText).width;
+      const maxSecW = w - margin * 2 - 16;
+      if (sW > maxSecW) {
+        secFontSize = Math.max(9.5, Math.floor(secFontSize * (maxSecW / sW)));
+        ctx.font = `600 ${secFontSize}px "Plus Jakarta Sans", sans-serif`;
+      }
       ctx.fillStyle = 'rgba(255,255,255,0.65)';
       ctx.textAlign = 'center';
-      ctx.fillText(secParts.join('   |   '), w / 2, dividerY + h * 0.035);
+      ctx.fillText(secText, w / 2, dividerY + h * 0.035);
     }
 
     // HR zones bar
@@ -1528,20 +1613,25 @@ export class CanvasEngine {
     }
 
     // Caption area (below photo, inside white frame)
-    const captionY = photoY + photoH + h * 0.015;
     const captionCX = w / 2;
     const captionColor = '#2a2015';
 
     ctx.save();
     ctx.textAlign = 'center';
 
-    // Activity title in a casual/rounded handwriting-like style
-    ctx.font = `800 ${Math.round(w * 0.052)}px "Plus Jakarta Sans", sans-serif`;
+    // Dynamic vertical layout in the bottom polaroid frame
+    const titleSize = Math.max(18, Math.min(Math.round(w * 0.048), Math.round(frameB * 0.18)));
+    ctx.font = `800 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
     ctx.fillStyle = captionColor;
-    const titleLines = this.wrapText(ctx, activity.title, photoW * 0.88);
-    titleLines.slice(0, 2).forEach((line, i) => {
-      ctx.fillText(line, captionCX, captionY + h * 0.042 + i * h * 0.05);
+    const titleLines = this.wrapText(ctx, activity.title, photoW * 0.88).slice(0, 2);
+
+    let curY = photoY + photoH + Math.max(18, Math.round(frameB * 0.12));
+    titleLines.forEach((line) => {
+      ctx.fillText(line, captionCX, curY);
+      curY += Math.round(titleSize * 1.18);
     });
+
+    curY += Math.max(10, Math.round(frameB * 0.05));
 
     // Stat line
     const metricsConfig = config.metrics || {
@@ -1580,26 +1670,43 @@ export class CanvasEngine {
     }
 
     if (statItems.length > 0) {
+      let statFontSize = Math.max(11, Math.min(Math.round(w * 0.024), Math.round(frameB * 0.095)));
       const statLine = statItems.slice(0, 5).join('  ·  ');
-      ctx.font = `600 ${Math.round(w * 0.026)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = 'rgba(42,32,21,0.62)';
-      ctx.fillText(statLine, captionCX, captionY + h * 0.115);
+      ctx.font = `600 ${statFontSize}px "JetBrains Mono", monospace`;
+      let sW = ctx.measureText(statLine).width;
+      if (sW > photoW * 0.88) {
+        statFontSize = Math.max(10, Math.floor(statFontSize * ((photoW * 0.88) / sW)));
+        ctx.font = `600 ${statFontSize}px "JetBrains Mono", monospace`;
+      }
+      ctx.fillStyle = 'rgba(42,32,21,0.65)';
+      ctx.fillText(statLine, captionCX, curY);
+      curY += Math.round(statFontSize * 1.32) + Math.max(8, Math.round(frameB * 0.035));
     }
 
     // Date / location
     const meta = [activity.date, activity.locationCity].filter(Boolean).join('  —  ');
-    ctx.font = `500 ${Math.round(w * 0.022)}px "JetBrains Mono", monospace`;
-    ctx.fillStyle = 'rgba(42,32,21,0.42)';
-    ctx.fillText(meta, captionCX, captionY + h * 0.138);
+    if (meta) {
+      let metaSize = Math.max(10, Math.min(Math.round(w * 0.020), Math.round(frameB * 0.08)));
+      ctx.font = `500 ${metaSize}px "JetBrains Mono", monospace`;
+      let mW = ctx.measureText(meta).width;
+      if (mW > photoW * 0.80) {
+        metaSize = Math.max(9, Math.floor(metaSize * ((photoW * 0.80) / mW)));
+        ctx.font = `500 ${metaSize}px "JetBrains Mono", monospace`;
+        mW = ctx.measureText(meta).width;
+      }
+      ctx.fillStyle = 'rgba(42,32,21,0.48)';
+      ctx.fillText(meta, captionCX, curY);
 
-    // Accent color dot
-    ctx.fillStyle = config.accentColor === '#ffffff' ? '#c8ff00' : config.accentColor;
-    ctx.beginPath();
-    ctx.arc(captionCX - w * 0.14, captionY + h * 0.138, 5, 0, Math.PI * 2);
-    ctx.fill();
+      // Accent color dot strictly positioned relative to measured text width
+      ctx.fillStyle = config.accentColor === '#ffffff' ? '#c8ff00' : config.accentColor;
+      ctx.beginPath();
+      ctx.arc(captionCX - mW / 2 - 12, curY - metaSize * 0.32, 4, 0, Math.PI * 2);
+      ctx.fill();
+      curY += Math.round(metaSize * 1.3);
+    }
 
     if (config.showWatermark) {
-      const pWatermarkY = Math.round(captionY + h * 0.165);
+      const pWatermarkY = Math.min(Math.round(photoY + photoH + frameB - 14), Math.round(curY + 14));
       this.drawWatermark(w, h, config, pWatermarkY);
     }
 
@@ -1986,11 +2093,21 @@ export class CanvasEngine {
     ctx.fillStyle = config.accentColor;
     ctx.fillText(pillText, cx, cy + 8);
 
-    ctx.font = `800 ${48 * pos.scale}px "Plus Jakarta Sans", sans-serif`;
+    let titleFontSize = 48 * pos.scale;
+    ctx.font = `800 ${titleFontSize}px "Plus Jakarta Sans", sans-serif`;
+    const maxTitleW = w * 0.88;
+    const titleW = ctx.measureText(activity.title).width;
+    if (titleW > maxTitleW) {
+      titleFontSize = Math.max(24 * pos.scale, Math.floor(titleFontSize * (maxTitleW / titleW)));
+      ctx.font = `800 ${titleFontSize}px "Plus Jakarta Sans", sans-serif`;
+    }
+
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
     ctx.shadowBlur = 14;
-    ctx.fillText(activity.title, cx, cy + 92 * pos.scale);
+    const titleY = cy + 74 * pos.scale + Math.round(titleFontSize * 0.4);
+    ctx.fillText(activity.title, cx, titleY);
+    ctx.shadowBlur = 0;
 
     const subParts: string[] = [];
     if (activity.locationCity) subParts.push(activity.locationCity);
@@ -1998,10 +2115,18 @@ export class CanvasEngine {
     if (activity.gearName && !activity.locationCity?.includes(activity.gearName)) subParts.push(activity.gearName);
 
     if (subParts.length > 0) {
-      ctx.font = `500 ${24 * pos.scale}px "Plus Jakarta Sans", sans-serif`;
+      const subText = subParts.join('  •  ');
+      let subFontSize = 24 * pos.scale;
+      ctx.font = `500 ${subFontSize}px "Plus Jakarta Sans", sans-serif`;
+      const subW = ctx.measureText(subText).width;
+      if (subW > maxTitleW) {
+        subFontSize = Math.max(14 * pos.scale, Math.floor(subFontSize * (maxTitleW / subW)));
+        ctx.font = `500 ${subFontSize}px "Plus Jakarta Sans", sans-serif`;
+      }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.shadowBlur = 8;
-      ctx.fillText(subParts.join('  •  '), cx, cy + 146 * pos.scale);
+      ctx.fillText(subText, cx, titleY + Math.round(titleFontSize * 0.45) + Math.round(subFontSize * 0.8) + 6);
+      ctx.shadowBlur = 0;
     }
 
     ctx.restore();
@@ -2143,9 +2268,17 @@ export class CanvasEngine {
     if (hasSec) {
       const secY = hasHero ? cardY + cardH - 24 * pos.scale : cy + 6 * pos.scale;
       ctx.textAlign = 'center';
-      ctx.font = `600 ${18 * pos.scale}px "Plus Jakarta Sans", sans-serif`;
+      let secFontSize = 18 * pos.scale;
+      const secText = secMetrics.join('   |   ');
+      ctx.font = `600 ${secFontSize}px "Plus Jakarta Sans", sans-serif`;
+      const sW = ctx.measureText(secText).width;
+      const maxSecW = cardW - 36 * pos.scale;
+      if (sW > maxSecW) {
+        secFontSize = Math.max(12 * pos.scale, Math.floor(secFontSize * (maxSecW / sW)));
+        ctx.font = `600 ${secFontSize}px "Plus Jakarta Sans", sans-serif`;
+      }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.fillText(secMetrics.join('   |   '), cx, secY);
+      ctx.fillText(secText, cx, secY);
     }
 
     ctx.restore();
@@ -2214,13 +2347,21 @@ export class CanvasEngine {
     ctx.textAlign = 'left';
     ctx.font = `800 ${14 * pos.scale}px "JetBrains Mono", monospace`;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.fillText('HEART RATE ZONES (Z1 → Z5)', startX + 22 * pos.scale, headerY);
+    const hrTitle = 'HEART RATE ZONES (Z1 → Z5)';
+    ctx.fillText(hrTitle, startX + 22 * pos.scale, headerY);
 
     if (activity.avgHeartRate) {
       ctx.textAlign = 'right';
-      ctx.font = `700 ${14 * pos.scale}px "JetBrains Mono", monospace`;
+      let hrFontSize = 14 * pos.scale;
+      ctx.font = `700 ${hrFontSize}px "JetBrains Mono", monospace`;
       ctx.fillStyle = config.accentColor;
       const hrSummary = `AVG: ${activity.avgHeartRate} BPM${activity.maxHeartRate ? `  •  MAX: ${activity.maxHeartRate} BPM` : ''}`;
+      const hrW = ctx.measureText(hrSummary).width;
+      const leftW = ctx.measureText(hrTitle).width;
+      if (leftW + hrW + 20 * pos.scale > cardW - 44 * pos.scale) {
+        hrFontSize = Math.max(9 * pos.scale, Math.floor(hrFontSize * ((cardW - 44 * pos.scale - leftW - 20 * pos.scale) / hrW)));
+        ctx.font = `700 ${hrFontSize}px "JetBrains Mono", monospace`;
+      }
       ctx.fillText(hrSummary, startX + cardW - 22 * pos.scale, headerY);
     }
 
@@ -2351,13 +2492,22 @@ export class CanvasEngine {
     ctx.textAlign = 'left';
     ctx.font = `800 ${14 * pos.scale}px "JetBrains Mono", monospace`;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.fillText(`KILOMETER SPLITS (${N} TOTAL)`, startX + padX, titleY);
+    const splitTitle = `KILOMETER SPLITS (${N} TOTAL)`;
+    ctx.fillText(splitTitle, startX + padX, titleY);
 
     if (minPace < Infinity) {
       ctx.textAlign = 'right';
-      ctx.font = `700 ${13 * pos.scale}px "JetBrains Mono", monospace`;
+      let fastFontSize = 13 * pos.scale;
+      ctx.font = `700 ${fastFontSize}px "JetBrains Mono", monospace`;
       ctx.fillStyle = config.accentColor;
-      ctx.fillText(`⚡ FASTEST: KM ${displaySplits[fastestIdx].splitIndex} (${formatPace(minPace)}/km)`, startX + cardW - padX, titleY);
+      const fastText = `⚡ FASTEST: KM ${displaySplits[fastestIdx].splitIndex} (${formatPace(minPace)}/km)`;
+      const fastW = ctx.measureText(fastText).width;
+      const leftW = ctx.measureText(splitTitle).width;
+      if (leftW + fastW + 20 * pos.scale > cardW - padX * 2) {
+        fastFontSize = Math.max(9 * pos.scale, Math.floor(fastFontSize * ((cardW - padX * 2 - leftW - 20 * pos.scale) / fastW)));
+        ctx.font = `700 ${fastFontSize}px "JetBrains Mono", monospace`;
+      }
+      ctx.fillText(fastText, startX + cardW - padX, titleY);
     }
 
     const gridY = startY + headerH + padY;
@@ -2627,21 +2777,31 @@ export class CanvasEngine {
       ctx.fillText(kicker, w / 2, headY);
 
       // Title in elegant serif typography
-      ctx.font = `700 ${Math.max(18, Math.round(w * 0.048))}px "Playfair Display", "Georgia", serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.046));
+      ctx.font = `700 ${titleSize}px "Playfair Display", "Georgia", serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
       ctx.shadowBlur = 12;
-      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w * 0.80);
-      titleLines.slice(0, 2).forEach((line, i) => {
-        ctx.fillText(line, w / 2, headY + h * 0.045 + i * h * 0.05);
+      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w * 0.80).slice(0, 2);
+      let titleCurY = headY + Math.max(22, Math.round(titleSize * 1.15));
+      titleLines.forEach((line) => {
+        ctx.fillText(line, w / 2, titleCurY);
+        titleCurY += Math.round(titleSize * 1.16);
       });
       ctx.shadowBlur = 0;
 
-      // Subtitle / Location
+      // Subtitle / Location placed strictly below measured title bottom
       if (activity.locationCity) {
-        ctx.font = `italic 500 ${Math.max(11, Math.round(minDim * 0.018))}px "Georgia", serif`;
+        let subSize = Math.max(11, Math.round(minDim * 0.017));
+        ctx.font = `italic 500 ${subSize}px "Georgia", serif`;
+        const subText = `Recorded in ${activity.locationCity}  •  ${coordStr}`;
+        const subW = ctx.measureText(subText).width;
+        if (subW > w * 0.84) {
+          subSize = Math.max(9, Math.floor(subSize * ((w * 0.84) / subW)));
+          ctx.font = `italic 500 ${subSize}px "Georgia", serif`;
+        }
         ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-        ctx.fillText(`Recorded in ${activity.locationCity}  •  ${coordStr}`, w / 2, headY + h * 0.10);
+        ctx.fillText(subText, w / 2, titleCurY + Math.max(6, Math.round(subSize * 0.6)));
       }
     }
 
@@ -2660,30 +2820,37 @@ export class CanvasEngine {
     // 6. Classical Laurel / Rule-Flanked Hero Distance Readout
     const btmAreaY = h * 0.70;
     if (showHero) {
-      const heroNumSize = Math.max(26, Math.min(Math.round(h * 0.088), Math.round(w * 0.11)));
+      let heroNumSize = Math.max(26, Math.min(Math.round(h * 0.088), Math.round(w * 0.11)));
       ctx.textAlign = 'center';
 
       // Horizontal classical flanking rules
       const heroY = btmAreaY;
       ctx.font = `700 ${heroNumSize}px "Playfair Display", "Georgia", serif`;
       const distNumText = isGym ? distKm : `${distKm} KM`;
-      const numW = ctx.measureText(distNumText).width;
+      let numW = ctx.measureText(distNumText).width;
+      if (numW > w * 0.70) {
+        heroNumSize = Math.max(22, Math.floor(heroNumSize * ((w * 0.70) / numW)));
+        ctx.font = `700 ${heroNumSize}px "Playfair Display", "Georgia", serif`;
+        numW = ctx.measureText(distNumText).width;
+      }
 
-      const ruleW = Math.max(24, Math.round((w * 0.75 - numW) / 2));
-      const leftRuleX = w / 2 - numW / 2 - ruleW - 12;
-      const rightRuleX = w / 2 + numW / 2 + 12;
+      const ruleW = Math.max(16, Math.min(Math.round(w * 0.20), Math.round((w * 0.78 - numW) / 2) - 16));
+      const leftRuleX = w / 2 - numW / 2 - ruleW - 14;
+      const rightRuleX = w / 2 + numW / 2 + 14;
 
-      ctx.strokeStyle = `${activeColor}88`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(leftRuleX, heroY - heroNumSize * 0.3);
-      ctx.lineTo(leftRuleX + ruleW, heroY - heroNumSize * 0.3);
-      ctx.moveTo(rightRuleX, heroY - heroNumSize * 0.3);
-      ctx.lineTo(rightRuleX + ruleW, heroY - heroNumSize * 0.3);
-      ctx.stroke();
+      if (ruleW >= 14) {
+        ctx.strokeStyle = `${activeColor}88`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(leftRuleX, heroY - heroNumSize * 0.3);
+        ctx.lineTo(leftRuleX + ruleW, heroY - heroNumSize * 0.3);
+        ctx.moveTo(rightRuleX, heroY - heroNumSize * 0.3);
+        ctx.lineTo(rightRuleX + ruleW, heroY - heroNumSize * 0.3);
+        ctx.stroke();
 
-      drawDiamond(leftRuleX, heroY - heroNumSize * 0.3, 3);
-      drawDiamond(rightRuleX + ruleW, heroY - heroNumSize * 0.3, 3);
+        drawDiamond(leftRuleX, heroY - heroNumSize * 0.3, 3);
+        drawDiamond(rightRuleX + ruleW, heroY - heroNumSize * 0.3, 3);
+      }
 
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
@@ -2720,11 +2887,17 @@ export class CanvasEngine {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
         ctx.fillText(m.label, cx, tableStartY + Math.round(h * 0.024));
 
-        // Value
-        const valFontSize = Math.max(12, Math.round(minDim * 0.024));
+        // Value with auto-scaling to prevent column overlap
+        let valFontSize = Math.max(12, Math.round(minDim * 0.024));
         ctx.font = `700 ${valFontSize}px "Playfair Display", "Georgia", serif`;
         ctx.fillStyle = '#ffffff';
         const valStr = m.unit ? `${m.val} ${m.unit}` : m.val;
+        let valW = ctx.measureText(valStr).width;
+        const maxValW = colW * 0.86;
+        if (valW > maxValW) {
+          valFontSize = Math.max(10, Math.floor(valFontSize * (maxValW / valW)));
+          ctx.font = `700 ${valFontSize}px "Playfair Display", "Georgia", serif`;
+        }
         ctx.fillText(valStr, cx, tableStartY + Math.round(h * 0.056));
 
         // Vertical column dividers
@@ -2799,19 +2972,33 @@ export class CanvasEngine {
       ctx.fillStyle = activeColor;
       ctx.fillText('▲ ALPINE TRAIL SERIES  //  SUMMIT ARCHIVE', margin, h * 0.065);
 
-      ctx.font = `900 ${Math.max(18, Math.round(w * 0.055))}px "Plus Jakarta Sans", sans-serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.052));
+      ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.9)';
       ctx.shadowBlur = 16;
-      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.115);
+      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w - margin * 2).slice(0, 2);
+      let curTitleY = h * 0.112;
+      titleLines.forEach((line) => {
+        ctx.fillText(line, margin, curTitleY);
+        curTitleY += Math.round(titleSize * 1.18);
+      });
       ctx.shadowBlur = 0;
 
-      // Compass bearing & altitude tag
-      ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      // Compass bearing & altitude tag strictly below title
+      let metaSize = Math.max(10, Math.round(minDim * 0.014));
+      ctx.font = `600 ${metaSize}px "JetBrains Mono", monospace`;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
       const elevMeters = Math.round(activity.elevationGainMeters || 0);
-      const trailMeta = `BEARING 284° WNW  •  ▲ +${elevMeters}M VERTICAL  •  ${activity.date}`;
-      ctx.fillText(trailMeta, margin, h * 0.145);
+      let trailMeta = activity.locationCity
+        ? `${activity.locationCity.toUpperCase()}  •  ▲ +${elevMeters}M VERTICAL  •  ${activity.date}`
+        : `BEARING 284° WNW  •  ▲ +${elevMeters}M VERTICAL  •  ${activity.date}`;
+      const tmW = ctx.measureText(trailMeta).width;
+      if (tmW > w - margin * 2) {
+        metaSize = Math.max(8.5, Math.floor(metaSize * ((w - margin * 2) / tmW)));
+        ctx.font = `600 ${metaSize}px "JetBrains Mono", monospace`;
+      }
+      ctx.fillText(trailMeta, margin, curTitleY + Math.max(4, Math.round(metaSize * 0.5)));
     }
 
     // 4. GPS Route Polyline
@@ -2911,14 +3098,28 @@ export class CanvasEngine {
       ctx.fillStyle = activeColor;
       ctx.fillText('// TRAIL DISTANCE //', margin + 18, cardY + cardH * 0.28);
 
-      const heroFontSize = Math.min(Math.round(cardH * 0.52), Math.round(heroW * 0.28));
-      ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
-      ctx.fillStyle = '#ffffff';
-      const heroY = cardY + cardH * 0.78;
-      ctx.fillText(distKm, margin + 18, heroY);
-      const nW = ctx.measureText(distKm).width;
+      let heroFontSize = Math.min(Math.round(cardH * 0.52), Math.round(heroW * 0.28));
+      let unitFontSize = Math.round(heroFontSize * 0.40);
+      const maxHeroW = heroW - 36; // Strict clearance before divider line
 
-      ctx.font = `800 ${Math.round(heroFontSize * 0.42)}px "JetBrains Mono", monospace`;
+      ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+      let nW = ctx.measureText(distKm).width;
+      ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
+      let uW = ctx.measureText('KM').width;
+
+      if (nW + 8 + uW > maxHeroW) {
+        const scale = maxHeroW / (nW + 8 + uW);
+        heroFontSize = Math.max(22, Math.floor(heroFontSize * scale));
+        unitFontSize = Math.max(11, Math.floor(unitFontSize * scale));
+      }
+
+      ctx.font = `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+      nW = ctx.measureText(distKm).width;
+      const heroY = cardY + cardH * 0.78;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(distKm, margin + 18, heroY);
+
+      ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
       ctx.fillStyle = activeColor;
       ctx.fillText('KM', margin + 22 + nW, heroY);
 
@@ -2941,10 +3142,15 @@ export class CanvasEngine {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
         ctx.fillText(m.label, cellX, cellY + rowH * 0.28);
 
-        const valFontSize = Math.min(Math.round(rowH * 0.46), Math.round(colW * 0.22));
+        let valFontSize = Math.min(Math.round(rowH * 0.46), Math.round(colW * 0.22));
         ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
         ctx.fillStyle = '#ffffff';
         const valText = m.val;
+        const vW = ctx.measureText(valText).width;
+        if (vW > colW * 0.88) {
+          valFontSize = Math.max(10, Math.floor(valFontSize * ((colW * 0.88) / vW)));
+          ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillText(valText, cellX, cellY + rowH * 0.74);
 
         if (m.unit) {
@@ -3039,17 +3245,30 @@ export class CanvasEngine {
       ctx.fillText(`[ ${coordStr} ]  //  ${activity.date}`, margin, h * 0.065);
 
       // Stark modern title
-      ctx.font = `800 ${Math.max(18, Math.round(w * 0.052))}px "Plus Jakarta Sans", sans-serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.052));
+      ctx.font = `800 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.85)';
       ctx.shadowBlur = 14;
-      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.115);
+      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w - margin * 2).slice(0, 2);
+      let curTitleY = h * 0.112;
+      titleLines.forEach((line) => {
+        ctx.fillText(line, margin, curTitleY);
+        curTitleY += Math.round(titleSize * 1.18);
+      });
       ctx.shadowBlur = 0;
 
       if (activity.locationCity) {
-        ctx.font = `500 ${Math.max(10, Math.round(minDim * 0.015))}px "Plus Jakarta Sans", sans-serif`;
+        let citySize = Math.max(10, Math.round(minDim * 0.015));
+        ctx.font = `500 ${citySize}px "Plus Jakarta Sans", sans-serif`;
+        const cityText = activity.locationCity.toUpperCase();
+        const cW = ctx.measureText(cityText).width;
+        if (cW > w - margin * 2) {
+          citySize = Math.max(8.5, Math.floor(citySize * ((w - margin * 2) / cW)));
+          ctx.font = `500 ${citySize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillStyle = activeColor;
-        ctx.fillText(activity.locationCity.toUpperCase(), margin, h * 0.145);
+        ctx.fillText(cityText, margin, curTitleY + Math.max(4, Math.round(citySize * 0.5)));
       }
     }
 
@@ -3070,16 +3289,22 @@ export class CanvasEngine {
     // 5. Hero Distance Numeral (Modernist stark typography)
     const btmY = h * 0.72;
     if (showHero) {
-      const heroSize = Math.max(28, Math.min(Math.round(h * 0.11), Math.round(w * 0.18)));
-      ctx.textAlign = 'left';
+      let heroSize = Math.max(28, Math.min(Math.round(h * 0.10), Math.round(w * 0.17)));
       ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      let numW = ctx.measureText(distKm).width;
+      let unitW = !isGym ? ctx.measureText(' KM').width : 0;
+      if (numW + 10 + unitW > w - margin * 2) {
+        heroSize = Math.max(22, Math.floor(heroSize * ((w - margin * 2) / (numW + 10 + unitW))));
+        ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+        numW = ctx.measureText(distKm).width;
+      }
+      ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
       ctx.shadowBlur = 18;
       ctx.fillText(distKm, margin, btmY);
       ctx.shadowBlur = 0;
 
-      const numW = ctx.measureText(distKm).width;
       if (!isGym) {
         ctx.font = `700 ${Math.round(heroSize * 0.28)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = activeColor;
@@ -3097,7 +3322,7 @@ export class CanvasEngine {
 
     // 6. Floating Minimalist Telemetry Ticker
     if (showSecondary && metricsList.length > 0) {
-      const tickerY = showHero ? btmY + Math.round(h * 0.045) : btmY;
+      const tickerY = showHero ? btmY + Math.max(24, Math.round(h * 0.062)) : btmY;
       const tickerW = w - margin * 2;
       const tickerH = Math.max(38, Math.round(minDim * 0.065));
 
@@ -3118,11 +3343,18 @@ export class CanvasEngine {
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+        let tickSize = Math.max(9, Math.round(minDim * 0.014));
+        ctx.font = `700 ${tickSize}px "JetBrains Mono", monospace`;
         ctx.fillStyle = '#ffffff';
 
         const unitPart = m.unit ? ` ${m.unit}` : '';
-        ctx.fillText(`${m.label}: ${m.val}${unitPart}`, cx, cy);
+        const tickText = `${m.label}: ${m.val}${unitPart}`;
+        const tW = ctx.measureText(tickText).width;
+        if (tW > colW * 0.88) {
+          tickSize = Math.max(8, Math.floor(tickSize * ((colW * 0.88) / tW)));
+          ctx.font = `700 ${tickSize}px "JetBrains Mono", monospace`;
+        }
+        ctx.fillText(tickText, cx, cy);
 
         // Hairline column separators
         if (idx < cellCount - 1) {
@@ -3151,10 +3383,12 @@ export class CanvasEngine {
     const ctx = this.ctx;
     ctx.save();
 
-    const cx = w * 0.5;
-    const cy = h * 0.44;
+    const pos = config.positions?.routeMap;
+    const cx = pos ? (w * pos.xPercent) / 100 : w * 0.5;
+    const cy = pos ? (h * pos.yPercent) / 100 : h * 0.44;
+    const scale = pos?.scale ?? 1.0;
     const minDim = Math.min(w, h);
-    const radius = minDim * 0.20;
+    const radius = minDim * 0.18 * Math.min(1.0, scale);
     const accent = config.accentColor || '#c8ff00';
 
     // 1. Subtle glowing background circular halo
@@ -3295,17 +3529,29 @@ export class CanvasEngine {
       ctx.fillText(`[ IRON CRAFT // HEAVY SESSION ]`, margin, badgeY);
       ctx.shadowBlur = 0;
 
-      ctx.font = `900 ${Math.max(20, Math.round(w * 0.062))}px "Plus Jakarta Sans", sans-serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.055));
+      ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.95)';
       ctx.shadowBlur = 18;
-      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.118);
+      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w - margin * 2).slice(0, 2);
+      let curTitleY = h * 0.112;
+      titleLines.forEach((line) => {
+        ctx.fillText(line, margin, curTitleY);
+        curTitleY += Math.round(titleSize * 1.18);
+      });
       ctx.shadowBlur = 0;
 
       const subStr = [activity.locationCity || 'POWERHOUSE GYM', activity.date].join('  •  ');
-      ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      let subSize = Math.max(10, Math.round(minDim * 0.015));
+      ctx.font = `600 ${subSize}px "JetBrains Mono", monospace`;
+      const sW = ctx.measureText(subStr).width;
+      if (sW > w - margin * 2) {
+        subSize = Math.max(8.5, Math.floor(subSize * ((w - margin * 2) / sW)));
+        ctx.font = `600 ${subSize}px "JetBrains Mono", monospace`;
+      }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-      ctx.fillText(subStr, margin, h * 0.148);
+      ctx.fillText(subStr, margin, curTitleY + Math.max(4, Math.round(subSize * 0.5)));
     }
 
     // 3. Centerpiece Visual: Gym Intensity Rings & Pulse (or route if points exist)
@@ -3317,16 +3563,35 @@ export class CanvasEngine {
       }
     }
 
-    // 4. Massive Power Hero: Time Under Tension (Duration)
-    const heroY = h * 0.69;
-    if (showHero) {
-      const heroSize = Math.max(34, Math.min(Math.round(h * 0.12), Math.round(w * 0.19)));
-      ctx.textAlign = 'left';
+    // Secondary High-Contrast Metallic Cards
+    const showSecondary = config.showSecondaryStats !== false;
+    const cardY = showHero ? h * 0.74 : h * 0.62;
+    const cardW = w - margin * 2;
+    const cardH = Math.max(48, Math.round(minDim * 0.088));
 
+    // 4. Massive Power Hero: Time Under Tension (Duration)
+    if (showHero) {
+      const heroY = cardY - Math.max(18, Math.round(h * 0.035));
+      let heroSize = Math.max(28, Math.min(Math.round(h * 0.10), Math.round(w * 0.17)));
+      let unitSize = Math.round(heroSize * 0.26);
+      const maxHeroW = w - margin * 2;
+
+      ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      let numW = ctx.measureText(timeStr).width;
+      ctx.font = `800 ${unitSize}px "JetBrains Mono", monospace`;
+      let uW = ctx.measureText('ELAPSED').width;
+
+      if (numW + 12 + uW > maxHeroW) {
+        const scale = maxHeroW / (numW + 12 + uW);
+        heroSize = Math.max(24, Math.floor(heroSize * scale));
+        unitSize = Math.max(11, Math.floor(unitSize * scale));
+      }
+
+      ctx.textAlign = 'left';
       // Small upper kicker
       ctx.font = `800 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.fillText('TIME UNDER TENSION', margin, heroY - heroSize * 0.72);
+      ctx.fillText('TIME UNDER TENSION', margin, heroY - heroSize * 0.76);
 
       // Main big number
       ctx.font = `900 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
@@ -3335,20 +3600,16 @@ export class CanvasEngine {
       ctx.shadowBlur = 22;
       ctx.fillText(timeStr, margin, heroY);
       ctx.shadowBlur = 0;
+      numW = ctx.measureText(timeStr).width;
 
       // Unit tag
-      const numW = ctx.measureText(timeStr).width;
-      ctx.font = `800 ${Math.round(heroSize * 0.26)}px "JetBrains Mono", monospace`;
+      ctx.font = `800 ${unitSize}px "JetBrains Mono", monospace`;
       ctx.fillStyle = activeColor;
       ctx.fillText('ELAPSED', margin + numW + 12, heroY);
     }
 
     // 5. Secondary High-Contrast Metallic Cards
-    if (config.showSecondaryStats !== false) {
-      const cardY = showHero ? h * 0.73 : h * 0.62;
-      const cardW = w - margin * 2;
-      const cardH = Math.max(48, Math.round(minDim * 0.088));
-
+    if (showSecondary) {
       // 4 High-impact telemetry metrics
       const ironMetrics: Array<{ label: string; val: string; icon: string }> = [];
       if (activity.calories) ironMetrics.push({ label: 'ENERGY', val: `${activity.calories} kcal`, icon: '🔥' });
@@ -3386,7 +3647,13 @@ export class CanvasEngine {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.fillText(`${m.icon} ${m.label}`, itemX + colW / 2, cardY + cardH * 0.38);
 
-        ctx.font = `800 ${Math.max(12, Math.round(minDim * 0.022))}px "Plus Jakarta Sans", sans-serif`;
+        let valFontSize = Math.max(12, Math.round(minDim * 0.022));
+        ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        const vW = ctx.measureText(m.val).width;
+        if (vW > colW * 0.86) {
+          valFontSize = Math.max(10, Math.floor(valFontSize * ((colW * 0.86) / vW)));
+          ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillStyle = '#ffffff';
         ctx.fillText(m.val, itemX + colW / 2, cardY + cardH * 0.78);
       });
@@ -3447,14 +3714,27 @@ export class CanvasEngine {
       ctx.fillText(`⚡ WOD COMPLETED // FOR TIME`, margin, h * 0.065);
       ctx.shadowBlur = 0;
 
-      ctx.font = `900 ${Math.max(20, Math.round(w * 0.065))}px "Plus Jakarta Sans", sans-serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.055));
+      ctx.font = `900 ${titleSize}px "Plus Jakarta Sans", sans-serif`;
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(activity.title.toUpperCase(), margin, h * 0.118);
+      const titleLines = this.wrapText(ctx, activity.title.toUpperCase(), w - margin * 2).slice(0, 2);
+      let curTitleY = h * 0.112;
+      titleLines.forEach((line) => {
+        ctx.fillText(line, margin, curTitleY);
+        curTitleY += Math.round(titleSize * 1.18);
+      });
 
       const boxLoc = activity.locationCity || 'FUNCTIONAL ARENA';
-      ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      let subSize = Math.max(10, Math.round(minDim * 0.014));
+      ctx.font = `600 ${subSize}px "JetBrains Mono", monospace`;
+      const subStr = `BOX: ${boxLoc.toUpperCase()}  //  ${activity.date}`;
+      const sW = ctx.measureText(subStr).width;
+      if (sW > w - margin * 2) {
+        subSize = Math.max(8.5, Math.floor(subSize * ((w - margin * 2) / sW)));
+        ctx.font = `600 ${subSize}px "JetBrains Mono", monospace`;
+      }
       ctx.fillStyle = activeColor;
-      ctx.fillText(`BOX: ${boxLoc.toUpperCase()}  //  ${activity.date}`, margin, h * 0.148);
+      ctx.fillText(subStr, margin, curTitleY + Math.max(4, Math.round(subSize * 0.5)));
     }
 
     // 2. Centerpiece: Dynamic Gym Intensity Visual
@@ -3499,14 +3779,20 @@ export class CanvasEngine {
       ctx.lineTo(margin + timerW - 6, timerY + timerH - 6 - bracketLen);
       ctx.stroke();
 
-      // Large digital timer numerals
+      // Large digital timer numerals with auto-fit
       ctx.textAlign = 'center';
-      const timerFontSize = Math.max(34, Math.min(Math.round(h * 0.08), Math.round(w * 0.145)));
+      let timerFontSize = Math.max(30, Math.min(Math.round(h * 0.075), Math.round(w * 0.14)));
       ctx.font = `900 ${timerFontSize}px "JetBrains Mono", monospace`;
+      const timerStr = `${timeStr}.0`;
+      const tW = ctx.measureText(timerStr).width;
+      if (tW > timerW * 0.85) {
+        timerFontSize = Math.max(22, Math.floor(timerFontSize * ((timerW * 0.85) / tW)));
+        ctx.font = `900 ${timerFontSize}px "JetBrains Mono", monospace`;
+      }
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = activeColor;
       ctx.shadowBlur = 15;
-      ctx.fillText(`${timeStr}.0`, w / 2, timerY + timerH * 0.65);
+      ctx.fillText(timerStr, w / 2, timerY + timerH * 0.65);
       ctx.shadowBlur = 0;
 
       // Small subtitle
@@ -3544,7 +3830,13 @@ export class CanvasEngine {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.fillText(st.label, itemX + colW / 2, statsY + statsH * 0.38);
 
-        ctx.font = `800 ${Math.max(11, Math.round(minDim * 0.020))}px "Plus Jakarta Sans", sans-serif`;
+        let valFontSize = Math.max(11, Math.round(minDim * 0.020));
+        ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        const vW = ctx.measureText(st.val).width;
+        if (vW > colW * 0.86) {
+          valFontSize = Math.max(10, Math.floor(valFontSize * ((colW * 0.86) / vW)));
+          ctx.font = `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillStyle = '#ffffff';
         ctx.fillText(st.val, itemX + colW / 2, statsY + statsH * 0.78);
       });
@@ -3597,17 +3889,29 @@ export class CanvasEngine {
       ctx.fillText(`THE ATHLETIC CLUB • ARCHIVE`, w / 2, borderInset + Math.round(h * 0.04));
       ctx.letterSpacing = '0px';
 
-      ctx.font = `700 ${Math.max(20, Math.round(w * 0.062))}px "Playfair Display", Georgia, serif`;
+      let titleSize = Math.max(18, Math.round(w * 0.052));
+      ctx.font = `700 ${titleSize}px "Playfair Display", Georgia, serif`;
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.85)';
       ctx.shadowBlur = 12;
-      ctx.fillText(activity.title, w / 2, borderInset + Math.round(h * 0.092));
+      const titleLines = this.wrapText(ctx, activity.title, w - borderInset * 2 - 32).slice(0, 2);
+      let curTitleY = borderInset + Math.round(h * 0.082);
+      titleLines.forEach((line) => {
+        ctx.fillText(line, w / 2, curTitleY);
+        curTitleY += Math.round(titleSize * 1.18);
+      });
       ctx.shadowBlur = 0;
 
       const venue = activity.locationCity ? `${activity.locationCity.toUpperCase()}  —  ${activity.date}` : activity.date;
-      ctx.font = `500 ${Math.max(9.5, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      let venueSize = Math.max(9.5, Math.round(minDim * 0.014));
+      ctx.font = `500 ${venueSize}px "JetBrains Mono", monospace`;
+      const venW = ctx.measureText(venue).width;
+      if (venW > w - borderInset * 2 - 32) {
+        venueSize = Math.max(8.5, Math.floor(venueSize * ((w - borderInset * 2 - 32) / venW)));
+        ctx.font = `500 ${venueSize}px "JetBrains Mono", monospace`;
+      }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.fillText(venue, w / 2, borderInset + Math.round(h * 0.122));
+      ctx.fillText(venue, w / 2, curTitleY + Math.max(4, Math.round(venueSize * 0.5)));
     }
 
     // 3. Centerpiece: Dynamic Gym Intensity Visual
@@ -3619,30 +3923,36 @@ export class CanvasEngine {
       }
     }
 
+    // 5. Minimalist Telemetry Table Geometry
+    const tableW = w - borderInset * 2 - 20;
+    const tableH = Math.max(48, Math.round(minDim * 0.078));
+    const tableX = w / 2 - tableW / 2;
+    const tableY = showHero ? h * 0.80 : h * 0.65;
+
     // 4. Hero Numerals: Session Duration
-    const heroY = h * 0.72;
     if (showHero) {
-      const heroSize = Math.max(30, Math.min(Math.round(h * 0.105), Math.round(w * 0.165)));
+      const heroY = tableY - Math.max(18, Math.round(h * 0.038));
+      let heroSize = Math.max(28, Math.min(Math.round(h * 0.095), Math.round(w * 0.15)));
       ctx.textAlign = 'center';
       ctx.font = `800 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      const tW = ctx.measureText(timeStr).width;
+      if (tW > tableW * 0.90) {
+        heroSize = Math.max(22, Math.floor(heroSize * ((tableW * 0.90) / tW)));
+        ctx.font = `800 ${heroSize}px "Plus Jakarta Sans", sans-serif`;
+      }
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
       ctx.shadowBlur = 16;
       ctx.fillText(timeStr, w / 2, heroY);
       ctx.shadowBlur = 0;
 
-      ctx.font = `700 ${Math.max(10, Math.round(minDim * 0.015))}px "JetBrains Mono", monospace`;
+      ctx.font = `700 ${Math.max(9.5, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
       ctx.fillStyle = activeColor;
-      ctx.fillText('SESSION DURATION', w / 2, heroY + Math.round(heroSize * 0.32));
+      ctx.fillText('SESSION DURATION', w / 2, heroY + Math.round(heroSize * 0.30));
     }
 
     // 5. Minimalist Telemetry Table
     if (config.showSecondaryStats !== false) {
-      const tableY = showHero ? h * 0.79 : h * 0.65;
-      const tableW = w - borderInset * 2 - 20;
-      const tableH = Math.max(48, Math.round(minDim * 0.078));
-      const tableX = w / 2 - tableW / 2;
-
       ctx.fillStyle = `rgba(16, 22, 32, ${cardAlpha})`;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
       ctx.lineWidth = 1;
@@ -3665,7 +3975,13 @@ export class CanvasEngine {
         ctx.fillStyle = activeColor;
         ctx.fillText(st.label, itemCX, tableY + tableH * 0.4);
 
-        ctx.font = `700 ${Math.max(12, Math.round(minDim * 0.020))}px "Plus Jakarta Sans", sans-serif`;
+        let valFontSize = Math.max(12, Math.round(minDim * 0.020));
+        ctx.font = `700 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        const vW = ctx.measureText(st.val).width;
+        if (vW > colW * 0.86) {
+          valFontSize = Math.max(10, Math.floor(valFontSize * ((colW * 0.86) / vW)));
+          ctx.font = `700 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        }
         ctx.fillStyle = '#ffffff';
         ctx.fillText(st.val, itemCX, tableY + tableH * 0.78);
 
@@ -3689,6 +4005,847 @@ export class CanvasEngine {
     }
 
     ctx.restore();
+  }
+
+  // ============================================================
+  // LAYOUT 13: VISION ADAPTIVE (with 5 Artistic Variations)
+  // Generated on the fly based on uploaded photo analysis
+  // Dynamically places hero stats, route polyline, and headers
+  // into negative space without occluding the athlete
+  // ============================================================
+  private renderVisionAdaptive(activity: WorkoutActivity, config: OverlayConfig, w: number, h: number) {
+    const ctx = this.ctx;
+    const minDim = Math.min(w, h);
+
+    // 1. Ensure vision profile is analyzed
+    let profile = config.visionProfile || this.visionProfile;
+    if (!profile && this.currentImage && this.currentImage.complete && (this.currentImage.naturalWidth > 0 || this.currentImage.width > 0)) {
+      try {
+        profile = ImageAnalyzer.analyze(this.currentImage);
+        this.visionProfile = profile;
+      } catch (e) {}
+    }
+    if (!profile) {
+      profile = {
+        subjectRegion: 'bottom-center',
+        negativeSpaceRegion: 'top',
+        backdropLuminance: 'dark',
+        averageLuminance: 60,
+        recommendedTheme: 'glass-dark',
+        recommendedAccentColor: '#10b981',
+        layoutStyle: 'top-masthead',
+        suggestedVariant: 'aero-hud',
+        statsPlacement: {
+          headerX: 50,
+          headerY: 9,
+          heroX: 50,
+          heroY: 24,
+          routeX: 76,
+          routeY: 44,
+          cardAlign: 'center',
+        },
+        summary: 'Adaptive composition layout',
+        confidenceScore: 0.85,
+        source: 'client-cv',
+      };
+    }
+
+    const variant: VisionAdaptiveVariant = config.visionVariant || profile.suggestedVariant || 'aero-hud';
+    const activeColor = config.accentColor || profile.recommendedAccentColor;
+    const cardAlpha = Math.max(0.2, config.cardOpacity ?? 0.82);
+    const placement = profile.statsPlacement;
+    const style = profile.layoutStyle;
+
+    // 2. Draw Background Photo and Atmosphere
+    this.drawBackground(w, h, config);
+    this.drawAtmosphere(w, h, config);
+
+    // 3. Dynamic Adaptive Scrim (Tailored to open space & variant)
+    if (!config.transparentBackground) {
+      this.drawVisionAdaptiveScrim(w, h, style, variant, activeColor);
+    }
+
+    // 4. GPS Route Polyline or Gym Visual (Placed in secondary negative space)
+    if (config.showPolyline) {
+      const isFlankPlacement = placement.routeX <= 32 || placement.routeX >= 68;
+      const routeScale = isFlankPlacement ? 0.46 : (variant === 'summit-topo' ? 0.58 : 0.64);
+      const routeConfig = {
+        ...config,
+        positions: {
+          ...config.positions,
+          routeMap: { xPercent: placement.routeX, yPercent: placement.routeY, scale: routeScale },
+        },
+      };
+
+      if (activity.points && activity.points.length > 1) {
+        this.drawRoutePolyline(activity.points, w, h, routeConfig);
+      } else if (isStrengthOrGymActivity(activity)) {
+        this.drawGymIntensityVisual(activity, w, h, routeConfig);
+      }
+    }
+
+    ctx.save();
+
+    // 5. Header Component (Dispatched by artistic variant)
+    if (config.showTitleHeader) {
+      this.drawVisionAdaptiveHeader(activity, config, w, h, placement, variant, activeColor, minDim);
+    }
+
+    // 6. Hero & Telemetry Stats Card (Dispatched by artistic variant & layout style)
+    if (config.showHeroStats !== false || config.showSecondaryStats !== false) {
+      this.drawVisionAdaptiveStats(activity, config, w, h, placement, style, variant, activeColor, cardAlpha, minDim);
+    }
+
+    // 7. Dynamic Variant Decorators (Elevation silhouette, film stamps, cyber crosshairs)
+    this.drawVisionAdaptiveDecorations(activity, config, w, h, placement, style, variant, activeColor, minDim);
+
+    // 8. Watermark & Vision Intelligence Badge
+    if (config.showWatermark) {
+      const wmY = h - Math.round(h * 0.030);
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${Math.max(8, Math.round(minDim * 0.0125))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      const variantLabels: Record<VisionAdaptiveVariant, string> = {
+        'aero-hud': 'AERO CYBER HUD',
+        'editorial': 'EDITORIAL ISSUE',
+        'summit-topo': 'ALPINE TOPO PROFILE',
+        'swiss-minimal': 'SWISS MODERNIST',
+        'cinematic-film': '35MM FILM VINTAGE',
+      };
+      const vLabel = variantLabels[variant] || 'SMART VISION';
+      ctx.fillText(`⚡ RUNCRAFT [${vLabel}]  •  ${profile.summary.toUpperCase()}`, w / 2, wmY);
+    }
+
+    ctx.restore();
+  }
+
+  // --- Dynamic Scrim Renderer ---
+  private drawVisionAdaptiveScrim(w: number, h: number, style: string, variant: VisionAdaptiveVariant, accent: string) {
+    const ctx = this.ctx;
+    ctx.save();
+
+    let scrimDark = 'rgba(8, 12, 18, 0.88)';
+    let scrimMid = 'rgba(8, 12, 18, 0.45)';
+    if (variant === 'cinematic-film') {
+      scrimDark = 'rgba(18, 14, 12, 0.90)';
+      scrimMid = 'rgba(18, 14, 12, 0.48)';
+    } else if (variant === 'summit-topo') {
+      scrimDark = 'rgba(10, 16, 24, 0.92)';
+      scrimMid = 'rgba(10, 16, 24, 0.50)';
+    } else if (variant === 'swiss-minimal') {
+      scrimDark = 'rgba(6, 6, 6, 0.92)';
+      scrimMid = 'rgba(6, 6, 6, 0.42)';
+    }
+
+    if (style === 'top-masthead') {
+      const topGrad = ctx.createLinearGradient(0, 0, 0, h * 0.45);
+      topGrad.addColorStop(0, scrimDark);
+      topGrad.addColorStop(0.55, scrimMid);
+      topGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, w, h * 0.45);
+    } else if (style === 'bottom-dock') {
+      const btmGrad = ctx.createLinearGradient(0, h * 0.56, 0, h);
+      btmGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      btmGrad.addColorStop(0.38, scrimMid);
+      btmGrad.addColorStop(1, scrimDark);
+      ctx.fillStyle = btmGrad;
+      ctx.fillRect(0, h * 0.56, w, h * 0.44);
+    } else if (style === 'left-pillar') {
+      const leftGrad = ctx.createLinearGradient(0, 0, w * 0.54, 0);
+      leftGrad.addColorStop(0, scrimDark);
+      leftGrad.addColorStop(0.65, scrimMid);
+      leftGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = leftGrad;
+      ctx.fillRect(0, 0, w * 0.54, h);
+    } else if (style === 'right-pillar') {
+      const rightGrad = ctx.createLinearGradient(w, 0, w * 0.46, 0);
+      rightGrad.addColorStop(0, scrimDark);
+      rightGrad.addColorStop(0.65, scrimMid);
+      rightGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = rightGrad;
+      ctx.fillRect(w * 0.46, 0, w * 0.54, h);
+    } else {
+      const minDim = Math.min(w, h);
+      const radGrad = ctx.createRadialGradient(w / 2, h / 2, minDim * 0.32, w / 2, h / 2, minDim * 0.88);
+      radGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      radGrad.addColorStop(1, 'rgba(8, 12, 18, 0.70)');
+      ctx.fillStyle = radGrad;
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.restore();
+  }
+
+  // --- Dynamic Creative Header Renderer ---
+  private drawVisionAdaptiveHeader(
+    activity: WorkoutActivity,
+    config: OverlayConfig,
+    w: number,
+    h: number,
+    placement: any,
+    variant: VisionAdaptiveVariant,
+    accent: string,
+    minDim: number
+  ) {
+    const ctx = this.ctx;
+    const hx = (w * placement.headerX) / 100;
+    const hy = (h * placement.headerY) / 100;
+    const align = placement.cardAlign || 'center';
+
+    let eleGain = activity.elevationGainMeters || 0;
+    if ((eleGain === 0) && activity.points && activity.points.length > 1) {
+      const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
+      if (altitudes.length >= 2) {
+        eleGain = computeRobustElevationGain(altitudes);
+      }
+    }
+
+    // Resolve creative title style (user preference or variant-driven auto)
+    let titleStyle: TitleCreativeStyle = config.titleCreativeStyle || 'auto';
+    if (titleStyle === 'auto') {
+      if (variant === 'aero-hud') titleStyle = 'kinetic-speed';
+      else if (variant === 'editorial') titleStyle = 'editorial-minimal';
+      else if (variant === 'summit-topo') titleStyle = 'alpine-crest';
+      else if (variant === 'swiss-minimal') titleStyle = 'side-spine';
+      else if (variant === 'cinematic-film') titleStyle = 'hero-headline';
+      else titleStyle = 'hero-headline';
+    }
+
+    ctx.save();
+
+    if (titleStyle === 'side-spine') {
+      // =========================================================================
+      // STYLE 1: SIDE SPINE — 90-degree rotated margin spine along the frame edge
+      // Highly non-standard, editorial, leaves central photo completely uncluttered
+      // =========================================================================
+      const spineX = placement.cardAlign === 'right' ? Math.round(w * 0.94) : Math.round(w * 0.06);
+      const spineY = Math.round(h * 0.78);
+      const spineLen = Math.min(h * 0.62, 640);
+
+      ctx.save();
+      ctx.translate(spineX, spineY);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'left';
+
+      // 1. Hairline coordinate axis line with periodic ticks
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.lineTo(spineLen, -18);
+      ctx.stroke();
+
+      for (let tx = 0; tx <= spineLen; tx += 75) {
+        ctx.beginPath();
+        ctx.moveTo(tx, -22);
+        ctx.lineTo(tx, -14);
+        ctx.stroke();
+      }
+
+      // 2. High-impact telemetry badge
+      ctx.font = `800 ${Math.max(9, Math.round(minDim * 0.014))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 6;
+      ctx.fillText(`■ RUNCRAFT // ${activity.sportType.toUpperCase()} //`, 0, 0);
+      ctx.shadowBlur = 0;
+
+      const badgeW = ctx.measureText(`■ RUNCRAFT // ${activity.sportType.toUpperCase()} // `).width;
+
+      // 3. Bold display title
+      ctx.font = `900 ${Math.max(18, Math.round(minDim * 0.046))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.92)';
+      ctx.shadowBlur = 14;
+      ctx.fillText(activity.title.toUpperCase(), badgeW + 6, 0);
+      ctx.shadowBlur = 0;
+
+      const titleW = ctx.measureText(activity.title.toUpperCase()).width;
+
+      // 4. Trailing coordinates & timestamp
+      ctx.font = `600 ${Math.max(8.5, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      const spineMeta = activity.locationCity
+        ? `// ${activity.locationCity.toUpperCase()} • ${activity.date}`
+        : `// ${activity.date}`;
+      ctx.fillText(spineMeta, badgeW + titleW + 20, 0);
+      ctx.restore();
+
+    } else if (titleStyle === 'hero-headline') {
+      // =========================================================================
+      // STYLE 2: HERO HEADLINE — Massive bold statement with ghosted outline watermark
+      // Multi-layered depth creating high-end athletic campaign impact
+      // =========================================================================
+      ctx.textAlign = align;
+
+      // 1. Neon micro-pill kicker above title
+      const kickerFontSize = Math.max(9.5, Math.round(minDim * 0.015));
+      ctx.font = `800 ${kickerFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 8;
+      ctx.fillText(`◈ ATHLETIC LOG // ${activity.sportType.toUpperCase()} ARCHIVE`, hx, hy);
+      ctx.shadowBlur = 0;
+
+      // 2. Ultra-bold foreground headline with dynamic auto-fit
+      let heroTitleSize = Math.max(26, Math.round(minDim * 0.065));
+      ctx.font = `900 ${heroTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      const maxHeroTitleW = Math.min(w * 0.86, 840);
+      let htw = ctx.measureText(activity.title).width;
+      if (htw > maxHeroTitleW) {
+        heroTitleSize = Math.max(18, Math.floor(heroTitleSize * (maxHeroTitleW / htw)));
+        ctx.font = `900 ${heroTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      }
+
+      const titleY = hy + kickerFontSize + Math.round(heroTitleSize * 0.88);
+
+      // 3. Ghosted outline watermark behind the title for immense depth
+      const wmSize = Math.round(heroTitleSize * 1.55);
+      ctx.font = `900 ${wmSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.11)';
+      ctx.lineWidth = Math.max(1.5, Math.round(minDim * 0.0028));
+      ctx.strokeText(activity.title.toUpperCase(), hx, titleY);
+
+      ctx.font = `900 ${heroTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(activity.title, hx, titleY);
+      ctx.shadowBlur = 0;
+
+      // 4. Crisp date & location telemetry footer with guaranteed clearance
+      const loc = activity.locationCity ? `📍 ${activity.locationCity}  •  ` : '';
+      const footerFontSize = Math.max(9, Math.round(minDim * 0.0145));
+      ctx.font = `600 ${footerFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.76)';
+      const footerY = titleY + Math.round(heroTitleSize * 0.42) + footerFontSize + 6;
+      ctx.fillText(`${loc}${activity.date}  •  PACE LEAD`, hx, footerY);
+
+    } else if (titleStyle === 'kinetic-speed') {
+      // =========================================================================
+      // STYLE 3: KINETIC SPEED — Aggressive forward-slanted speed styling with neon slashes
+      // Dynamic velocity aesthetics, angled typography, horizontal speed streak
+      // =========================================================================
+      ctx.textAlign = align;
+
+      // 1. Velocity telemetry tag
+      const tagFontSize = Math.max(10, Math.round(minDim * 0.0155));
+      ctx.font = `800 ${tagFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 10;
+      ctx.fillText(`/// SPEED VELOCITY // ${activity.sportType.toUpperCase()} RECORD`, hx, hy);
+      ctx.shadowBlur = 0;
+
+      // 2. Slanted ultra-bold speed title with auto-fit
+      let speedTitleSize = Math.max(26, Math.round(minDim * 0.068));
+      ctx.font = `italic 900 ${speedTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      const maxSpeedW = Math.min(w * 0.86, 840);
+      let stw = ctx.measureText(activity.title).width;
+      if (stw > maxSpeedW) {
+        speedTitleSize = Math.max(18, Math.floor(speedTitleSize * (maxSpeedW / stw)));
+        ctx.font = `italic 900 ${speedTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      }
+      const titleY = hy + tagFontSize + Math.round(speedTitleSize * 0.88);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.92)';
+      ctx.shadowBlur = 16;
+      ctx.fillText(activity.title, hx, titleY);
+      ctx.shadowBlur = 0;
+
+      // 3. Fast horizontal neon streak bar strictly underneath title
+      const streakW = Math.min(w * 0.58, 480);
+      const streakX = align === 'center' ? hx - streakW / 2 : (align === 'right' ? hx - streakW : hx);
+      const streakY = titleY + Math.round(speedTitleSize * 0.28) + 6;
+      const streakGrad = ctx.createLinearGradient(streakX, 0, streakX + streakW, 0);
+      streakGrad.addColorStop(0, accent);
+      streakGrad.addColorStop(0.7, `${accent}44`);
+      streakGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = streakGrad;
+      ctx.fillRect(streakX, streakY, streakW, Math.max(2, Math.round(minDim * 0.0035)));
+
+      // 4. Velocity subtitle placed with clean clearance
+      const paceText = activity.avgPaceSecPerKm ? `${formatPace(activity.avgPaceSecPerKm)} AVG PACE  •  ` : '';
+      const footerFontSize = Math.max(9, Math.round(minDim * 0.0145));
+      ctx.font = `600 ${footerFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+      ctx.fillText(`${paceText}${activity.date}`, hx, streakY + footerFontSize + 12);
+
+    } else if (titleStyle === 'alpine-crest') {
+      // =========================================================================
+      // STYLE 4: ALPINE CREST — Mountain summit crest with elevation badge & topo rules
+      // Rugged outdoor typography with integrated altitude chevron
+      // =========================================================================
+      ctx.textAlign = align;
+
+      // 1. Mountain summit chevron badge
+      const badgeFontSize = Math.max(9.5, Math.round(minDim * 0.015));
+      ctx.font = `800 ${badgeFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 6;
+      ctx.fillText(`▲ +${Math.round(eleGain)}M ASCENT // 1:25000 TOPO`, hx, hy);
+      ctx.shadowBlur = 0;
+
+      // 2. Bold condensed outdoor title framed by topo rule
+      let alpineTitleSize = Math.max(22, Math.round(minDim * 0.056));
+      ctx.font = `900 ${alpineTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      const maxAlpineW = Math.min(w * 0.86, 840);
+      let atw = ctx.measureText(activity.title.toUpperCase()).width;
+      if (atw > maxAlpineW) {
+        alpineTitleSize = Math.max(16, Math.floor(alpineTitleSize * (maxAlpineW / atw)));
+        ctx.font = `900 ${alpineTitleSize}px "Plus Jakarta Sans", sans-serif`;
+      }
+      const titleY = hy + badgeFontSize + Math.round(alpineTitleSize * 0.88);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+      ctx.shadowBlur = 16;
+      ctx.fillText(activity.title.toUpperCase(), hx, titleY);
+      ctx.shadowBlur = 0;
+
+      // 3. Topo bearing coordinates with guaranteed clearance
+      const locStr = activity.locationCity ? `${activity.locationCity.toUpperCase()} • ` : '';
+      const footerFontSize = Math.max(8.5, Math.round(minDim * 0.0135));
+      ctx.font = `600 ${footerFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.68)';
+      ctx.fillText(`BEARING 284° WNW  •  ${locStr}${activity.date}`, hx, titleY + Math.round(alpineTitleSize * 0.40) + footerFontSize + 6);
+
+    } else {
+      // =========================================================================
+      // STYLE 5: EDITORIAL MINIMAL — Tracksmith / Vogue Running Asymmetric Masthead
+      // Luxury serif typography with full-width ultra-fine hairline divider
+      // =========================================================================
+      ctx.textAlign = align;
+
+      // 1. Issue archive kicker
+      const issueNum = Math.max(1, Math.min(99, Math.round(activity.distanceMeters / 1000)));
+      const kickerFontSize = Math.max(9.5, Math.round(minDim * 0.0145));
+      ctx.font = `700 ${kickerFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.fillText(`THE ATHLETIC ARCHIVE  //  ISSUE NO. ${issueNum}  //  VOL. 26`, hx, hy);
+
+      // 2. Majestic display serif title with auto-fit
+      let edTitleSize = Math.max(24, Math.round(minDim * 0.058));
+      ctx.font = `800 ${edTitleSize}px "Playfair Display", Georgia, serif`;
+      const maxEdW = Math.min(w * 0.86, 840);
+      let etw = ctx.measureText(activity.title).width;
+      if (etw > maxEdW) {
+        edTitleSize = Math.max(18, Math.floor(edTitleSize * (maxEdW / etw)));
+        ctx.font = `800 ${edTitleSize}px "Playfair Display", Georgia, serif`;
+      }
+      const titleY = hy + kickerFontSize + Math.round(edTitleSize * 0.88);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 14;
+      ctx.fillText(activity.title, hx, titleY);
+      ctx.shadowBlur = 0;
+
+      // 3. Hairline accent divider line (strictly below title)
+      const lineW = Math.min(w * 0.86, 780);
+      const lineX = align === 'center' ? hx - lineW / 2 : (align === 'right' ? hx - lineW : hx);
+      const lineY = titleY + Math.round(edTitleSize * 0.28) + 6;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(lineX, lineY);
+      ctx.lineTo(lineX + lineW, lineY);
+      ctx.stroke();
+
+      // 4. Asymmetric editorial metadata
+      const sub = activity.locationCity
+        ? `Documented in ${activity.locationCity} — Verified Session ${activity.date}`
+        : `Official Session — ${activity.date}`;
+      const footerFontSize = Math.max(9, Math.round(minDim * 0.015));
+      ctx.font = `italic 500 ${footerFontSize}px "Playfair Display", Georgia, serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.fillText(sub, hx, lineY + footerFontSize + 12);
+    }
+
+    ctx.restore();
+  }
+
+  // --- Dynamic Unboxed Organic Stats Renderer (Completely Free of Enclosed Box) ---
+  private drawVisionAdaptiveStats(
+    activity: WorkoutActivity,
+    config: OverlayConfig,
+    w: number,
+    h: number,
+    placement: any,
+    style: string,
+    variant: VisionAdaptiveVariant,
+    accent: string,
+    _cardAlpha: number,
+    minDim: number
+  ) {
+    const ctx = this.ctx;
+    const isGym = isStrengthOrGymActivity(activity);
+
+    let eleGain = activity.elevationGainMeters;
+    if ((eleGain === undefined || eleGain === 0) && activity.points && activity.points.length > 1) {
+      const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
+      if (altitudes.length >= 2) {
+        eleGain = computeRobustElevationGain(altitudes);
+      }
+    }
+
+    const distKm = (activity.distanceMeters / 1000).toFixed(2);
+    const paceStr = formatPace(activity.avgPaceSecPerKm);
+    const timeStr = formatDuration(activity.movingTimeSec);
+    const eleStr = eleGain > 0 ? `+${eleGain}m` : `${eleGain || 0}m`;
+
+    const cx = (w * placement.heroX) / 100;
+    const cy = (h * placement.heroY) / 100;
+
+    const isVertical = style === 'left-pillar' || style === 'right-pillar';
+
+    ctx.save();
+
+    if (isVertical) {
+      // =========================================================================
+      // UNBOXED VERTICAL TYPOGRAPHIC WATERFALL (NO CARD BOX, NO BORDERS)
+      // Delicate vertical datum line with glowing nodes & floating stats
+      // =========================================================================
+      const spineX = placement.cardAlign === 'left' ? cx - Math.min(w * 0.16, 120) : cx - Math.min(w * 0.12, 90);
+      const startY = cy - Math.min(h * 0.18, 160);
+      const heroVal = isGym ? timeStr : distKm;
+      const heroUnit = isGym ? 'TIME' : 'KM';
+
+      // 1. Vertical glowing accent datum axis
+      const axisLen = Math.min(h * 0.36, 320);
+      ctx.strokeStyle = `${accent}66`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(spineX, startY);
+      ctx.lineTo(spineX, startY + axisLen);
+      ctx.stroke();
+
+      // 2. Hero Numeral (Giant Scale, floating borderlessly)
+      ctx.textAlign = 'left';
+      ctx.font = variant === 'editorial'
+        ? `900 ${Math.max(34, Math.round(minDim * 0.092))}px "Playfair Display", Georgia, serif`
+        : `900 ${Math.max(32, Math.round(minDim * 0.088))}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(heroVal, spineX + 16, startY + Math.round(minDim * 0.05));
+      ctx.shadowBlur = 0;
+
+      // Unit tag adjacent
+      ctx.font = `800 ${Math.max(10, Math.round(minDim * 0.016))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.fillText(heroUnit, spineX + 18, startY + Math.round(minDim * 0.076));
+
+      // 3. Secondary Metrics Waterfall
+      const subMetrics = isGym
+        ? [
+            { l: 'CALORIES', v: `${activity.calories || 420} kcal` },
+            { l: 'AVG HR', v: `${activity.avgHeartRate || 135} bpm` },
+            { l: 'PEAK HR', v: `${activity.maxHeartRate || 165} bpm` },
+          ]
+        : [
+            { l: 'AVG PACE', v: paceStr },
+            { l: 'MOVING TIME', v: timeStr },
+            { l: 'ELEV GAIN', v: eleStr },
+          ];
+
+      const rowStep = (axisLen - Math.round(minDim * 0.09)) / subMetrics.length;
+
+      subMetrics.forEach((m, idx) => {
+        const ry = startY + Math.round(minDim * 0.11) + idx * rowStep;
+
+        // Glowing node on vertical axis
+        ctx.fillStyle = accent;
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(spineX, ry + 4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Metric label
+        ctx.textAlign = 'left';
+        ctx.font = `700 ${Math.max(8.5, Math.round(minDim * 0.0125))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fillText(m.l, spineX + 18, ry);
+
+        // Metric value
+        ctx.font = variant === 'editorial'
+          ? `700 ${Math.max(15, Math.round(minDim * 0.030))}px "Playfair Display", serif`
+          : `800 ${Math.max(15, Math.round(minDim * 0.030))}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.92)';
+        ctx.shadowBlur = 14;
+        ctx.fillText(m.v, spineX + 18, ry + Math.round(minDim * 0.024));
+        ctx.shadowBlur = 0;
+      });
+
+    } else {
+      // =========================================================================
+      // UNBOXED HORIZONTAL TELEMETRY TAPE (NO CARD BOX, NO ROUNDED RECTANGLES)
+      // Floating Hero numeral with stacked unit + open horizontal telemetry strip
+      // =========================================================================
+      const heroVal = isGym ? timeStr : distKm;
+      const heroUnit = isGym ? 'MIN' : 'KM';
+      const heroLabel = isGym ? 'MOVING TIME' : 'DISTANCE';
+
+      const secMetrics = isGym
+        ? [
+            { label: 'CALORIES', val: `${activity.calories || 450} kcal` },
+            { label: 'AVG HR', val: `${activity.avgHeartRate || 138} bpm` },
+            { label: 'PEAK HR', val: `${activity.maxHeartRate || 168} bpm` },
+          ]
+        : [
+            { label: 'AVG PACE', val: paceStr },
+            { label: 'MOVING TIME', val: timeStr },
+            { label: 'ELEV GAIN', val: eleStr },
+          ];
+
+      const totalSpan = Math.min(w * 0.92, 940);
+      const startX = cx - totalSpan / 2;
+
+      // 1. Precisely pre-measure Hero Numeral & Unit to ensure divider & secondary stats NEVER collide
+      let heroFontSize = Math.max(34, Math.round(minDim * 0.092));
+      let unitFontSize = Math.max(12, Math.round(minDim * 0.022));
+
+      ctx.font = variant === 'editorial'
+        ? `900 ${heroFontSize * 1.05}px "Playfair Display", Georgia, serif`
+        : `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+      let numW = ctx.measureText(heroVal).width;
+
+      ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
+      let unitW = ctx.measureText(heroUnit).width;
+
+      // Cap hero width allocation so secondary metrics are never cramped
+      const maxHeroAllowed = Math.round(totalSpan * 0.38);
+      const heroGap = 8;
+      let heroNeeded = numW + heroGap + unitW;
+
+      if (heroNeeded > maxHeroAllowed) {
+        const scale = maxHeroAllowed / heroNeeded;
+        heroFontSize = Math.max(26, Math.floor(heroFontSize * scale));
+        unitFontSize = Math.max(10, Math.floor(unitFontSize * scale));
+        ctx.font = variant === 'editorial'
+          ? `900 ${heroFontSize * 1.05}px "Playfair Display", Georgia, serif`
+          : `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+        numW = ctx.measureText(heroVal).width;
+        ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
+        unitW = ctx.measureText(heroUnit).width;
+        heroNeeded = numW + heroGap + unitW;
+      }
+
+      // Hero allocated width with clean right padding before divider
+      const heroWidth = heroNeeded + 24;
+      const dividerX = startX + heroWidth;
+      const secStartX = dividerX + 24; // Guaranteed clean spacing after divider
+      const secWidth = (startX + totalSpan) - secStartX;
+
+      // 1. HERO NUMERAL SECTION (Left of strip)
+      ctx.textAlign = 'left';
+
+      // Upper micro-label
+      ctx.font = variant === 'editorial'
+        ? `italic 700 ${Math.max(9, Math.round(minDim * 0.0135))}px "Playfair Display", serif`
+        : `800 ${Math.max(8.5, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 6;
+      ctx.fillText(`◆ ${heroLabel}`, startX, cy - Math.round(minDim * 0.026));
+      ctx.shadowBlur = 0;
+
+      // Giant Hero Number
+      ctx.font = variant === 'editorial'
+        ? `900 ${heroFontSize * 1.05}px "Playfair Display", Georgia, serif`
+        : `900 ${heroFontSize}px "Plus Jakarta Sans", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+      ctx.shadowBlur = 20;
+      ctx.fillText(heroVal, startX, cy + Math.round(minDim * 0.046));
+      ctx.shadowBlur = 0;
+
+      // Floating Unit badge right beside the hero number
+      ctx.font = `800 ${unitFontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = accent;
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 8;
+      ctx.fillText(heroUnit, startX + numW + heroGap, cy + Math.round(minDim * 0.040));
+      ctx.shadowBlur = 0;
+
+      // 2. OPEN VERTICAL DIVIDER (Delicate slash or hairline separator)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(dividerX, cy - Math.round(minDim * 0.025));
+      ctx.lineTo(dividerX, cy + Math.round(minDim * 0.046));
+      ctx.stroke();
+
+      // 3. SECONDARY STATS ROW (Starts strictly after divider with generous space)
+      const colStep = secWidth / secMetrics.length;
+
+      secMetrics.forEach((m, idx) => {
+        const mx = secStartX + idx * colStep + colStep * 0.5;
+        ctx.textAlign = 'center';
+
+        // Micro Label
+        ctx.font = variant === 'editorial'
+          ? `italic 600 ${Math.max(8.5, Math.round(minDim * 0.013))}px "Playfair Display", serif`
+          : `700 ${Math.max(8.5, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.fillText(m.label, mx, cy - Math.round(minDim * 0.018));
+
+        // Value in high-contrast crisp typography (scaled to prevent any column collision)
+        let valFontSize = Math.max(16, Math.round(minDim * 0.036));
+        ctx.font = variant === 'editorial'
+          ? `800 ${valFontSize * 1.05}px "Playfair Display", Georgia, serif`
+          : `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        const valW = ctx.measureText(m.val).width;
+        const maxColAllowed = colStep * 0.86;
+        if (valW > maxColAllowed) {
+          valFontSize = Math.max(12, Math.floor(valFontSize * (maxColAllowed / valW)));
+          ctx.font = variant === 'editorial'
+            ? `800 ${valFontSize * 1.05}px "Playfair Display", Georgia, serif`
+            : `800 ${valFontSize}px "Plus Jakarta Sans", sans-serif`;
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = 16;
+        ctx.fillText(m.val, mx, cy + Math.round(minDim * 0.032));
+        ctx.shadowBlur = 0;
+
+        // Open 22px glowing accent baseline tick (NOT a box! Just a sleek datum indicator)
+        ctx.fillStyle = accent;
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = 6;
+        ctx.fillRect(mx - 11, cy + Math.round(minDim * 0.044), 22, 2.5);
+        ctx.shadowBlur = 0;
+
+        // Subtle vertical slash separator between secondary stats
+        if (idx < secMetrics.length - 1) {
+          ctx.font = `600 ${Math.max(10, Math.round(minDim * 0.016))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+          ctx.fillText('//', secStartX + (idx + 1) * colStep, cy + Math.round(minDim * 0.012));
+        }
+      });
+
+      // 4. Variant Special Decorator for Editorial / Summit
+      if (variant === 'editorial') {
+        // Continuous ultra-fine hairline rule under the whole telemetry line
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(startX, cy + Math.round(minDim * 0.058));
+        ctx.lineTo(startX + totalSpan, cy + Math.round(minDim * 0.058));
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // --- Dynamic Variant Decorators (Elevation Graph, Film Frame, Cyber Crosshairs) ---
+  private drawVisionAdaptiveDecorations(
+    activity: WorkoutActivity,
+    config: OverlayConfig,
+    w: number,
+    h: number,
+    placement: any,
+    style: string,
+    variant: VisionAdaptiveVariant,
+    accent: string,
+    minDim: number
+  ) {
+    const ctx = this.ctx;
+
+    // 1. SUMMIT TOPO: Real Elevation Silhouette Ribbon Graph in Negative Space
+    if (variant === 'summit-topo' && activity.points && activity.points.length > 5) {
+      const altitudes = activity.points.map((p) => p.ele).filter((e): e is number => e !== undefined);
+      if (altitudes.length > 5) {
+        const minAlt = Math.min(...altitudes);
+        const maxAlt = Math.max(...altitudes);
+        const altRange = Math.max(12, maxAlt - minAlt);
+
+        // Place the elevation silhouette under route or in negative space
+        const graphW = Math.min(w * 0.88, 860);
+        const graphH = Math.round(minDim * 0.08);
+        const graphX = w / 2 - graphW / 2;
+        // Position below or above stats
+        const graphY = style === 'top-masthead' ? (h * placement.heroY) / 100 + Math.round(minDim * 0.12) : (h * 0.62);
+
+        ctx.save();
+        ctx.beginPath();
+        altitudes.forEach((alt, idx) => {
+          const gx = graphX + (idx / (altitudes.length - 1)) * graphW;
+          const gy = graphY + graphH - ((alt - minAlt) / altRange) * graphH;
+          if (idx === 0) ctx.moveTo(gx, gy);
+          else ctx.lineTo(gx, gy);
+        });
+
+        // Glowing profile line
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Gradient under fill
+        ctx.lineTo(graphX + graphW, graphY + graphH);
+        ctx.lineTo(graphX, graphY + graphH);
+        ctx.closePath();
+        const altGrad = ctx.createLinearGradient(0, graphY, 0, graphY + graphH);
+        altGrad.addColorStop(0, `${accent}55`);
+        altGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = altGrad;
+        ctx.fill();
+
+        // Min & Max Altitude tags
+        ctx.textAlign = 'left';
+        ctx.font = `700 ${Math.max(8.5, Math.round(minDim * 0.012))}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.fillText(`▲ MAX ${Math.round(maxAlt)}M`, graphX, graphY - 6);
+        ctx.textAlign = 'right';
+        ctx.fillText(`BASE ${Math.round(minAlt)}M`, graphX + graphW, graphY - 6);
+        ctx.restore();
+      }
+    }
+
+    // 2. CINEMATIC FILM: Vintage Camera Stamps & Retro Amber Digital Timestamp
+    if (variant === 'cinematic-film') {
+      ctx.save();
+      // Vintage amber LED digital date stamp in lower-left corner
+      const dateY = h - Math.round(h * 0.058);
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${Math.max(11, Math.round(minDim * 0.018))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = '#ff9800';
+      ctx.shadowColor = 'rgba(255, 152, 0, 0.7)';
+      ctx.shadowBlur = 8;
+      ctx.fillText(`'26 10 27 07:15`, w * 0.06, dateY);
+      ctx.shadowBlur = 0;
+
+      // Film frame edge indices in upper-right
+      ctx.textAlign = 'right';
+      ctx.font = `600 ${Math.max(9, Math.round(minDim * 0.013))}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText(`35MM EXP 24  •  ISO 400`, w * 0.94, Math.round(h * 0.04));
+      ctx.restore();
+    }
+
+    // 3. AERO HUD: Cybernetic Crosshair Indicators in Negative Space
+    if (variant === 'aero-hud') {
+      ctx.save();
+      ctx.strokeStyle = `${accent}66`;
+      ctx.lineWidth = 1;
+      // Corner telemetry crosshairs
+      const drawCross = (cx: number, cy: number, size = 12) => {
+        ctx.beginPath();
+        ctx.moveTo(cx - size, cy); ctx.lineTo(cx + size, cy);
+        ctx.moveTo(cx, cy - size); ctx.lineTo(cx, cy + size);
+        ctx.stroke();
+      };
+      drawCross(w * 0.06, h * 0.06);
+      drawCross(w * 0.94, h * 0.06);
+      ctx.restore();
+    }
   }
 }
 

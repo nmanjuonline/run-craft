@@ -20,7 +20,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,800;0,900;1,600;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
     <link rel="stylesheet" href="/src/client/style.css" />
 
@@ -550,6 +550,31 @@
                 <img src="/samples/sample_cycling.jpg" alt="Road Cyclist" />
               </div>
             </div>
+
+            <!-- Smart Adaptive Composition Actions -->
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+              <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+                <span>Smart Adaptive Layout</span>
+                <span style="background: rgba(16, 185, 129, 0.2); color: #10b981; font-size: 9px; padding: 2px 6px; border-radius: 99px; font-weight: 800;">AI POWERED</span>
+              </div>
+              
+              <button class="btn btn-secondary btn-sm" id="btnVisionAnalyze" type="button" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #10b981; font-weight: 700; padding: 8px 12px; border-radius: 8px;">
+                <span>🎯</span>
+                <span>Auto-Place Stats (Client CV)</span>
+              </button>
+
+              <button class="btn btn-secondary btn-sm" id="btnGeminiVision" type="button" style="width: 100%; margin-top: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); color: #a5b4fc; font-weight: 700; padding: 8px 12px; border-radius: 8px;">
+                <span>✨</span>
+                <span>AI Vision Polish (Gemini)</span>
+              </button>
+
+              <div id="visionStatusPill" style="display: none; margin-top: 8px; padding: 8px 10px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; font-size: 11px; line-height: 1.4; color: #e2e8f0;">
+                <div style="font-weight: 700; color: #10b981; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+                  <span>⚡</span> <span id="visionStatusTitle">Composition Analyzed</span>
+                </div>
+                <div id="visionStatusDesc" style="color: var(--text-muted); font-size: 10px;">Stats placed in clear sky, avoiding runner.</div>
+              </div>
+            </div>
           </div>
         </section>
       </aside>
@@ -669,6 +694,21 @@
           <div class="card-glass" style="margin-bottom: 10px;">
             <div class="control-label" style="margin-bottom: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 800; color: var(--text-muted);">Layout Template</div>
             <div class="layout-template-grid" id="layoutTemplateGrid">
+
+              <!-- Vision Adaptive (AI Auto-Compose) -->
+              <button class="layout-template-card" data-layout="vision-adaptive" id="ltcVisionAdaptive" style="border-color: rgba(16, 185, 129, 0.45); background: linear-gradient(145deg, rgba(16, 185, 129, 0.12) 0%, rgba(11, 15, 23, 0.7) 100%);">
+                <div class="ltc-preview ltc-vision-adaptive">
+                  <div class="ltc-vision-radar"></div>
+                  <div class="ltc-vision-box"></div>
+                  <div class="ltc-vision-subject">🏃</div>
+                  <div class="ltc-vision-sparkle">✨</div>
+                </div>
+                <div class="ltc-label" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <span>Vision Adaptive</span>
+                  <span style="font-size: 8px; background: linear-gradient(135deg, #10b981, #06b6d4); color: #fff; padding: 1px 4px; border-radius: 4px; font-weight: 800;">AI</span>
+                </div>
+                <div class="ltc-desc">Generated on the fly · Avoids athlete</div>
+              </button>
 
               <button class="layout-template-card active" data-layout="classic">
                 <div class="ltc-preview ltc-classic">
@@ -803,6 +843,41 @@
                 <div class="ltc-label">Athletic Club</div>
                 <div class="ltc-desc">Equinox · Minimal ring</div>
               </button>
+            </div>
+
+            <!-- Vision Adaptive Variations Sub-bar -->
+            <div id="visionVariantContainer" style="margin-top: 10px; padding: 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.22); border-radius: 10px; box-sizing: border-box; overflow: hidden;">
+              <div style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #10b981; margin-bottom: 7px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+                <span>Adaptive Variation Style</span>
+                <span style="font-size: 9px; opacity: 0.9; background: rgba(16, 185, 129, 0.18); padding: 1px 6px; border-radius: 4px; font-weight: 800;">5 STYLES</span>
+              </div>
+              <div class="segmented-group" id="visionVariantGrid" style="width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-bottom: 4px; box-sizing: border-box;">
+                <button class="segment-btn active" data-vision-variant="aero-hud" title="Aero Cyber HUD">Aero</button>
+                <button class="segment-btn" data-vision-variant="editorial" title="Tracksmith / Vogue Magazine Editorial">Magazine</button>
+                <button class="segment-btn" data-vision-variant="summit-topo" title="Alpine Summit & Elevation Silhouette">Summit</button>
+              </div>
+              <div class="segmented-group" id="visionVariantGridRow2" style="width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px; margin-bottom: 12px; box-sizing: border-box;">
+                <button class="segment-btn" data-vision-variant="swiss-minimal" title="Swiss Stark Modernist Grid">Swiss</button>
+                <button class="segment-btn" data-vision-variant="cinematic-film" title="35mm Filmic Vintage">Film</button>
+              </div>
+
+              <!-- Title Creative Style & Alignment Picker -->
+              <div style="padding-top: 10px; border-top: 1px dashed rgba(16, 185, 129, 0.25);">
+                <div style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #10b981; margin-bottom: 7px; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: space-between;">
+                  <span>Title Creative Style & Alignment</span>
+                  <span style="font-size: 9px; opacity: 0.9; background: rgba(16, 185, 129, 0.18); padding: 1px 6px; border-radius: 4px; font-weight: 800;">BOLD TYPOGRAPHY</span>
+                </div>
+                <div class="segmented-group" id="titleStyleGrid" style="width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-bottom: 4px;">
+                  <button class="segment-btn active" data-title-style="auto" title="Auto: Matches active aesthetic">⚡ Auto</button>
+                  <button class="segment-btn" data-title-style="hero-headline" title="Hero Headline: Giant bold statement with ghost watermark">Hero</button>
+                  <button class="segment-btn" data-title-style="side-spine" title="Side Spine: 90° vertical margin spine along edge">Side Spine</button>
+                </div>
+                <div class="segmented-group" id="titleStyleGridRow2" style="width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;">
+                  <button class="segment-btn" data-title-style="kinetic-speed" title="Kinetic Speed: Slanted velocity title with neon slashes">Kinetic</button>
+                  <button class="segment-btn" data-title-style="alpine-crest" title="Alpine Crest: Mountain elevation badge with topo rules">Alpine</button>
+                  <button class="segment-btn" data-title-style="editorial-minimal" title="Editorial Minimal: Asymmetric magazine masthead">Editorial</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1092,6 +1167,46 @@
         <div class="shortcut-tip-box">
           <span style="color: var(--accent-lime); font-weight: 700;">PRO TIP:</span>
           Click and drag directly on the canvas to reposition your photo, or use mouse scroll wheel to zoom! Double-click canvas or sliders to reset to standard defaults.
+        </div>
+      </div>
+    </div>
+
+    <!-- Gemini Vision API Key Modal -->
+    <div class="modal-overlay" id="geminiApiKeyModal" role="dialog" aria-modal="true" aria-labelledby="geminiModalTitle" style="display: none;">
+      <div class="modal-dialog" style="max-width: 480px;">
+        <div class="modal-header">
+          <div class="modal-title" id="geminiModalTitle" style="display: flex; align-items: center; gap: 8px;">
+            <span>🤖</span>
+            <span>Gemini Vision AI Scene Analyzer</span>
+          </div>
+          <button class="close-btn" id="closeGeminiApiKeyModalBtn" aria-label="Close Gemini modal">&times;</button>
+        </div>
+
+        <div style="padding: 16px;">
+          <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+            RunCraft uses <strong>Gemini 2.5 Flash Multimodal Vision</strong> to semantically inspect your photo, detect the athlete's exact stance, and place workout telemetry stats in optimal negative space.
+          </p>
+
+          <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 10px; font-size: 12px; color: #10b981; margin-bottom: 14px; line-height: 1.4;">
+            💡 <strong>100% Free:</strong> Google AI Studio provides free Gemini API keys with no credit card required.
+          </div>
+
+          <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Google Gemini API Key</label>
+            <input type="password" id="geminiApiKeyInput" placeholder="AIzaSy..." style="width: 100%; padding: 10px 12px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #fff; font-family: monospace; font-size: 13px;" />
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+              Get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color: var(--accent-lime); text-decoration: underline;">Google AI Studio</a>. Saved only in your browser's localStorage.
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" id="saveGeminiApiKeyBtn" type="button" style="flex: 1; justify-content: center;">
+              Analyze with Gemini
+            </button>
+            <button class="btn btn-secondary" id="useClientCvFallbackBtn" type="button" style="flex: 1; justify-content: center;">
+              Use Local CV Instead
+            </button>
+          </div>
         </div>
       </div>
     </div>

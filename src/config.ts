@@ -81,6 +81,8 @@ export const CONFIG = {
         heroStats: { xPercent: 50, yPercent: 73, scale: 1.0 },
         hrZones: { xPercent: 50, yPercent: 88, scale: 1.0 },
       },
+      visionVariant: 'aero-hud',
+      titleCreativeStyle: 'auto',
     } as OverlayConfig,
   },
 } as const;

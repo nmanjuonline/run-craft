@@ -8,7 +8,8 @@ import { MOCK_ACTIVITIES } from '../sources/mockData.js';
 import { parseGpxFileContent } from './parsers/gpxClientParser.js';
 import { parseFitFileBuffer } from './parsers/fitClientParser.js';
 import { CONFIG } from '../config.js';
-import type { WorkoutActivity, OverlayConfig, AspectRatio, OverlayLayoutId } from '../types.js';
+import { reverseGeocodeCoords } from '../utils/geocoding.js';
+import type { WorkoutActivity, OverlayConfig, AspectRatio, OverlayLayoutId, VisionAdaptiveVariant, TitleCreativeStyle } from '../types.js';
 
 // Application State
 let currentActivity: WorkoutActivity = {
@@ -163,6 +164,7 @@ async function initApp() {
   setupAspectRatios();
   setupPalette();
   setupLayoutTemplates();
+  setupVisionAdaptiveControls();
   setupTextEditor();
   syncEditorInputs();
   setupExport();
@@ -198,6 +200,13 @@ function loadBackdropImage(src: string): Promise<void> {
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       canvasEngine.setImage(img);
+      if (currentConfig.layoutId === 'vision-adaptive') {
+        const profile = canvasEngine.getVisionProfile();
+        if (profile) {
+          currentConfig.visionProfile = profile;
+          updateVisionStatusPill(profile);
+        }
+      }
       triggerRender();
       resolve();
     };
@@ -263,9 +272,16 @@ function renderPresetsList() {
 
 export function formatWorkoutSubtitle(act: { locationCity?: string; gearName?: string }): string {
   const parts: string[] = [];
-  if (act.locationCity) parts.push(act.locationCity);
-  if (act.gearName && !act.locationCity?.includes(act.gearName)) {
-    parts.push(act.gearName);
+  if (act.locationCity) {
+    if (act.locationCity.includes('•')) {
+      const segs = act.locationCity.split('•').map((s) => s.trim()).filter(Boolean);
+      parts.push(...segs);
+    } else if (act.locationCity.trim()) {
+      parts.push(act.locationCity.trim());
+    }
+  }
+  if (act.gearName && act.gearName.trim() && !parts.includes(act.gearName.trim())) {
+    parts.push(act.gearName.trim());
   }
   return parts.join(' • ').trim();
 }
@@ -350,6 +366,10 @@ function syncTogglesState() {
       card.classList.remove('active');
     }
   });
+
+  // Sync vision adaptive variation buttons
+  syncVisionVariantButtons();
+  syncTitleStyleButtons();
 
   // Sync palette color dots
   document.querySelectorAll<HTMLElement>('.color-dot').forEach((dot) => {
@@ -535,6 +555,39 @@ function addActivityToList(act: WorkoutActivity) {
   setTabActive(tabPresetsBtn, viewPresets);
 }
 
+async function ensureActivityCity(act: WorkoutActivity) {
+  if (!act.points || act.points.length === 0) return;
+  // If locationCity is already populated with a resolved location (e.g. from backend streams API), don't overwrite
+  if (act.locationCity && act.locationCity.trim() && !act.locationCity.startsWith('•')) {
+    return;
+  }
+  const validPt = act.points.find(
+    (p) => p && typeof p.lat === 'number' && typeof p.lon === 'number' && !isNaN(p.lat) && !isNaN(p.lon) && (Math.abs(p.lat) > 0.001 || Math.abs(p.lon) > 0.001)
+  );
+  if (!validPt) return;
+
+  try {
+    const city = await reverseGeocodeCoords(validPt.lat, validPt.lon);
+    if (city) {
+      let gear = act.gearName;
+      if (!gear && act.locationCity && act.locationCity.includes('•')) {
+        const parts = act.locationCity.split('•').map((s) => s.trim()).filter(Boolean);
+        if (parts.length > 1) gear = parts.slice(1).join(' • ');
+      }
+      const newSubtitle = gear ? `${city} • ${gear}` : city;
+      act.locationCity = newSubtitle;
+      if (gear) act.gearName = gear;
+
+      if (currentActivity.id === act.id) {
+        currentActivity.locationCity = newSubtitle;
+        if (gear) currentActivity.gearName = gear;
+        syncEditorInputs();
+        triggerRender();
+      }
+    }
+  } catch {}
+}
+
 async function handleFitFile(file: File) {
   try {
     const buffer = await file.arrayBuffer();
@@ -543,6 +596,7 @@ async function handleFitFile(file: File) {
     addActivityToList(act);
     syncEditorInputs();
     triggerRender();
+    ensureActivityCity(act);
     const distOrDur = act.distanceMeters > 0 ? `${(act.distanceMeters / 1000).toFixed(1)}km` : formatDuration(act.movingTimeSec || act.elapsedTimeSec || 3600);
     showToast(`⚡ Loaded ${distOrDur} Garmin workout: ${act.title}`);
   } catch (err: any) {
@@ -558,6 +612,7 @@ async function handleGpxFile(file: File) {
     addActivityToList(act);
     syncEditorInputs();
     triggerRender();
+    ensureActivityCity(act);
     showToast(`⚡ Loaded ${(act.distanceMeters / 1000).toFixed(1)}km GPX track: ${act.title}`);
   } catch (err: any) {
     showToast(`Could not parse .GPX file: ${err.message}`, true);
@@ -1077,23 +1132,295 @@ function setupLayoutTemplates() {
       card.classList.add('active');
       const layout = (card.getAttribute('data-layout') || 'classic') as OverlayLayoutId;
       currentConfig.layoutId = layout;
-      triggerRender();
-      pushHistory();
-      const label = card.querySelector('.ltc-label')?.textContent || layout;
-      showToast(`Selected: ${label} layout`);
+      if (layout === 'vision-adaptive') {
+        runVisionAnalysis(false);
+      } else {
+        const pill = document.getElementById('visionStatusPill');
+        if (pill) pill.style.display = 'none';
+        triggerRender();
+        pushHistory();
+        const label = card.querySelector('.ltc-label')?.textContent || layout;
+        showToast(`Selected: ${label} layout`);
+      }
     });
   });
 }
 
-const availableGears: string[] = ['Salomon S/Lab', 'Nike Vaporfly 3', 'Trek Emonda SLR 9'];
+function setupVisionAdaptiveControls() {
+  const btnVisionAnalyze = document.getElementById('btnVisionAnalyze') as HTMLButtonElement | null;
+  const btnGeminiVision = document.getElementById('btnGeminiVision') as HTMLButtonElement | null;
+  const geminiApiKeyModal = document.getElementById('geminiApiKeyModal') as HTMLElement | null;
+  const closeGeminiApiKeyModalBtn = document.getElementById('closeGeminiApiKeyModalBtn') as HTMLButtonElement | null;
+  const saveGeminiApiKeyBtn = document.getElementById('saveGeminiApiKeyBtn') as HTMLButtonElement | null;
+  const useClientCvFallbackBtn = document.getElementById('useClientCvFallbackBtn') as HTMLButtonElement | null;
+  const geminiApiKeyInput = document.getElementById('geminiApiKeyInput') as HTMLInputElement | null;
 
-function updateGearSuggestions(newGears: string[]) {
-  for (const g of newGears) {
-    if (g && !availableGears.includes(g)) {
-      availableGears.push(g);
+  if (geminiApiKeyInput) {
+    geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+  }
+
+  btnVisionAnalyze?.addEventListener('click', () => {
+    switchToVisionAdaptive();
+    runVisionAnalysis(false);
+  });
+
+  btnGeminiVision?.addEventListener('click', () => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (!savedKey) {
+      if (geminiApiKeyModal) geminiApiKeyModal.style.display = 'flex';
+      return;
+    }
+    runGeminiVision(savedKey);
+  });
+
+  closeGeminiApiKeyModalBtn?.addEventListener('click', () => {
+    if (geminiApiKeyModal) geminiApiKeyModal.style.display = 'none';
+  });
+
+  useClientCvFallbackBtn?.addEventListener('click', () => {
+    if (geminiApiKeyModal) geminiApiKeyModal.style.display = 'none';
+    switchToVisionAdaptive();
+    runVisionAnalysis(false);
+  });
+
+  saveGeminiApiKeyBtn?.addEventListener('click', () => {
+    const key = geminiApiKeyInput?.value.trim() || '';
+    if (!key) {
+      showToast('Please enter a Gemini API key or use local CV', true);
+      return;
+    }
+    localStorage.setItem('gemini_api_key', key);
+    if (geminiApiKeyModal) geminiApiKeyModal.style.display = 'none';
+    runGeminiVision(key);
+  });
+
+  // Wire up 5 artistic variation buttons
+  const variantBtns = document.querySelectorAll<HTMLButtonElement>('[data-vision-variant]');
+  variantBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const v = (btn.getAttribute('data-vision-variant') || 'aero-hud') as VisionAdaptiveVariant;
+      currentConfig.visionVariant = v;
+      syncVisionVariantButtons();
+      switchToVisionAdaptive();
+      triggerRender();
+      pushHistory();
+      const variantLabels: Record<VisionAdaptiveVariant, string> = {
+        'aero-hud': 'Aero Cyber HUD',
+        'editorial': 'Editorial Magazine Cover',
+        'summit-topo': 'Alpine Summit & Elevation Silhouette',
+        'swiss-minimal': 'Swiss Stark Modernist Grid',
+        'cinematic-film': '35mm Filmic Vintage',
+      };
+      showToast(`⚡ Style: ${variantLabels[v] || v}`);
+      const prof = canvasEngine.getVisionProfile();
+      if (prof) updateVisionStatusPill(prof);
+    });
+  });
+
+  // Wire up Title Creative Style buttons
+  const titleStyleBtns = document.querySelectorAll<HTMLButtonElement>('[data-title-style]');
+  titleStyleBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const s = (btn.getAttribute('data-title-style') || 'auto') as TitleCreativeStyle;
+      currentConfig.titleCreativeStyle = s;
+      syncTitleStyleButtons();
+      switchToVisionAdaptive();
+      triggerRender();
+      pushHistory();
+      const styleLabels: Record<TitleCreativeStyle, string> = {
+        'auto': 'Auto Smart Match',
+        'hero-headline': 'Hero Headline (Ghost Depth)',
+        'side-spine': 'Vertical Side Spine',
+        'kinetic-speed': 'Kinetic Speed (Slanted)',
+        'alpine-crest': 'Alpine Summit Crest',
+        'editorial-minimal': 'Editorial Minimal Masthead',
+      };
+      showToast(`✨ Title Style: ${styleLabels[s] || s}`);
+    });
+  });
+}
+
+function syncVisionVariantButtons() {
+  const currentV = currentConfig.visionVariant || 'aero-hud';
+  document.querySelectorAll<HTMLButtonElement>('[data-vision-variant]').forEach((btn) => {
+    if (btn.getAttribute('data-vision-variant') === currentV) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function syncTitleStyleButtons() {
+  const currentS = currentConfig.titleCreativeStyle || 'auto';
+  document.querySelectorAll<HTMLButtonElement>('[data-title-style]').forEach((btn) => {
+    if (btn.getAttribute('data-title-style') === currentS) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function switchToVisionAdaptive() {
+  currentConfig.layoutId = 'vision-adaptive';
+  document.querySelectorAll<HTMLButtonElement>('.layout-template-card').forEach((c) => {
+    if (c.getAttribute('data-layout') === 'vision-adaptive') {
+      c.classList.add('active');
+    } else {
+      c.classList.remove('active');
+    }
+  });
+}
+
+function runVisionAnalysis(quiet = false) {
+  switchToVisionAdaptive();
+  const profile = canvasEngine.getVisionProfile();
+  if (profile) {
+    currentConfig.visionProfile = profile;
+    updateVisionStatusPill(profile);
+    triggerRender();
+    pushHistory();
+    if (!quiet) {
+      showToast(`🎯 Auto-placed: ${profile.summary}`);
+    }
+  } else {
+    triggerRender();
+    if (!quiet) {
+      showToast('⚡ Vision Adaptive active');
     }
   }
+}
+
+async function runGeminiVision(apiKey: string) {
+  showToast('✨ Analyzing photo with Gemini 2.5 Flash Vision...');
+  try {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = 720;
+    offscreen.height = Math.round(720 * (16 / 9));
+    const offCtx = offscreen.getContext('2d');
+    if (!offCtx) throw new Error('Failed to create offscreen context');
+
+    const img = (canvasEngine as any).currentImage;
+    if (img && img.complete) {
+      offCtx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
+    } else {
+      showToast('No photo loaded to analyze', true);
+      return;
+    }
+
+    const imageBase64 = offscreen.toDataURL('image/jpeg', 0.85);
+
+    const res = await fetch('/api/ai/analyze-scene', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64,
+        sportType: currentActivity.sportType,
+        userApiKey: apiKey,
+      }),
+    });
+
+    const data: any = await res.json();
+    if (data.profile) {
+      canvasEngine.setVisionProfile(data.profile);
+      currentConfig.visionProfile = data.profile;
+      switchToVisionAdaptive();
+      updateVisionStatusPill(data.profile);
+      triggerRender();
+      pushHistory();
+      showToast(`✨ Gemini Polish: ${data.profile.summary}`);
+    } else if (data.fallback) {
+      showToast(data.message || 'Gemini unavailable, using client-side CV');
+      runVisionAnalysis(false);
+    }
+  } catch (err: any) {
+    console.error('Gemini Vision error:', err);
+    showToast('Gemini analysis failed, using local CV instead', true);
+    runVisionAnalysis(false);
+  }
+}
+
+function updateVisionStatusPill(profile: any) {
+  const pill = document.getElementById('visionStatusPill');
+  const title = document.getElementById('visionStatusTitle');
+  const desc = document.getElementById('visionStatusDesc');
+  const currentV = (currentConfig.visionVariant || profile.suggestedVariant || 'aero-hud') as VisionAdaptiveVariant;
+  const variantLabels: Record<VisionAdaptiveVariant, string> = {
+    'aero-hud': 'Aero Cyber HUD',
+    'editorial': 'Editorial Magazine',
+    'summit-topo': 'Alpine Summit Topo',
+    'swiss-minimal': 'Swiss Stark Modernist',
+    'cinematic-film': '35mm Filmic Vintage',
+  };
+  if (pill && title && desc) {
+    pill.style.display = 'block';
+    const vName = variantLabels[currentV] || currentV;
+    title.textContent = profile.source === 'gemini-vision' ? `Gemini AI Vision [${vName}]` : `Adaptive Vision [${vName}]`;
+    desc.textContent = profile.summary || `Subject at ${profile.subjectRegion} → Stats placed in ${profile.negativeSpaceRegion}`;
+  }
+}
+
+const SAVED_GEARS_KEY = 'runcraft_saved_gears';
+const DEFAULT_POPULAR_GEARS: string[] = [
+  'Nike Vaporfly 3',
+  'Nike Alphafly 3',
+  'Asics Novablast 4',
+  'Asics Superblast 2',
+  'Saucony Endorphin Pro 4',
+  'Adidas Adizero Adios Pro 3',
+  'Hoka Mach 6',
+  'Puma Deviate Nitro 3',
+  'Salomon S/Lab Pulsar',
+];
+
+function loadSavedGears(): string[] {
+  try {
+    const raw = localStorage.getItem(SAVED_GEARS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const combined = [...parsed];
+        for (const g of DEFAULT_POPULAR_GEARS) {
+          if (!combined.includes(g)) combined.push(g);
+        }
+        return combined;
+      }
+    }
+  } catch {}
+  return [...DEFAULT_POPULAR_GEARS];
+}
+
+const availableGears: string[] = loadSavedGears();
+
+function saveUserGear(gear: string) {
+  if (!gear || typeof gear !== 'string') return;
+  const clean = gear.trim();
+  if (clean.length === 0) return;
+  const idx = availableGears.indexOf(clean);
+  if (idx !== -1) availableGears.splice(idx, 1);
+  availableGears.unshift(clean);
+  try {
+    localStorage.setItem(SAVED_GEARS_KEY, JSON.stringify(availableGears.slice(0, 15)));
+  } catch {}
   renderGearChips();
+}
+
+function updateGearSuggestions(newGears: string[]) {
+  const valid = newGears
+    .filter((g) => g && typeof g === 'string' && g.trim().length > 0)
+    .map((g) => g.trim());
+  if (valid.length > 0) {
+    for (const g of valid.reverse()) {
+      const idx = availableGears.indexOf(g);
+      if (idx !== -1) availableGears.splice(idx, 1);
+      availableGears.unshift(g);
+    }
+    try {
+      localStorage.setItem(SAVED_GEARS_KEY, JSON.stringify(availableGears.slice(0, 15)));
+    } catch {}
+    renderGearChips();
+  }
 }
 
 function renderGearChips() {
@@ -1123,6 +1450,7 @@ function renderGearChips() {
       editLocationInput.value = newLocation;
       currentActivity.gearName = gear;
       currentActivity.locationCity = newLocation;
+      saveUserGear(gear);
       triggerRender();
       pushHistory();
     });
@@ -1153,6 +1481,14 @@ function setupTextEditor() {
   });
   editLocationInput.addEventListener('input', () => {
     currentActivity.locationCity = editLocationInput.value;
+    if (editLocationInput.value.includes('•')) {
+      const parts = editLocationInput.value.split('•').map((s) => s.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        const typedGear = parts.slice(1).join(' • ');
+        currentActivity.gearName = typedGear;
+        saveUserGear(typedGear);
+      }
+    }
     triggerRender();
     pushHistory();
   });
@@ -1623,8 +1959,11 @@ async function loadStravaActivities(token: string, silent = false): Promise<bool
     const data = await res.json();
     const activities: WorkoutActivity[] = data.activities || [];
     const gears: Array<{ id: string; name: string }> = data.gears || [];
-    if (gears.length > 0) {
-      updateGearSuggestions(gears.map((g) => g.name));
+    const allGearNames = new Set<string>();
+    gears.forEach((g) => { if (g.name) allGearNames.add(g.name); });
+    activities.forEach((a) => { if (a.gearName) allGearNames.add(a.gearName); });
+    if (allGearNames.size > 0) {
+      updateGearSuggestions(Array.from(allGearNames));
     }
 
     if (activities.length === 0) {
@@ -1659,6 +1998,9 @@ async function loadStravaActivities(token: string, silent = false): Promise<bool
         currentActivity = { ...act };
         syncEditorInputs();
         triggerRender();
+        if (!currentActivity.locationCity && currentActivity.points && currentActivity.points.length > 0) {
+          ensureActivityCity(currentActivity);
+        }
       });
       viewPresets.appendChild(item);
     });
@@ -1667,6 +2009,9 @@ async function loadStravaActivities(token: string, silent = false): Promise<bool
     currentActivity = { ...activities[0] };
     syncEditorInputs();
     triggerRender();
+    if (!currentActivity.locationCity && currentActivity.points && currentActivity.points.length > 0) {
+      ensureActivityCity(currentActivity);
+    }
 
     if (!silent) {
       showStravaAlert(`Successfully imported ${activities.length} workouts from Strava!`, 'success');
@@ -1862,8 +2207,14 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
     const data = await res.json();
     const activities: WorkoutActivity[] = data.activities || [];
     const gears: Array<{ id: string; name: string }> = data.gears || [];
-    if (gears.length > 0) {
-      updateGearSuggestions(gears.map((g) => g.name));
+    const allGearNames = new Set<string>();
+    gears.forEach((g) => { if (g.name) allGearNames.add(g.name); });
+    activities.forEach((a) => {
+      if (a.gearName) allGearNames.add(a.gearName);
+      if (a.deviceName) allGearNames.add(a.deviceName);
+    });
+    if (allGearNames.size > 0) {
+      updateGearSuggestions(Array.from(allGearNames));
     }
 
     // Save API key
@@ -1933,6 +2284,9 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
         currentActivity = { ...act };
         syncEditorInputs();
         triggerRender();
+        if (currentActivity.points && currentActivity.points.length > 0) {
+          ensureActivityCity(currentActivity);
+        }
 
         // Lazy fetch GPS route streams if not yet loaded
         if (!currentActivity.points || currentActivity.points.length === 0) {
@@ -1955,10 +2309,18 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
                 currentActivity.elevationGainMeters = streamData.elevationGainMeters;
                 if (editEleInput) editEleInput.value = currentActivity.elevationGainMeters.toString();
               }
-              if (streamData.gearName && !act.gearName) {
+              if (streamData.locationCity) {
+                act.locationCity = streamData.locationCity;
+                currentActivity.locationCity = streamData.locationCity;
+                syncEditorInputs();
+              }
+              if (streamData.gearName) {
                 act.gearName = streamData.gearName;
                 currentActivity.gearName = streamData.gearName;
                 syncEditorInputs();
+              }
+              if (currentActivity.points && currentActivity.points.length > 0) {
+                ensureActivityCity(currentActivity);
               }
               triggerRender();
             }
@@ -1972,6 +2334,9 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
     currentActivity = { ...activities[0] };
     syncEditorInputs();
     triggerRender();
+    if (currentActivity.points && currentActivity.points.length > 0) {
+      ensureActivityCity(currentActivity);
+    }
 
     // Fetch GPS stream for the first activity immediately
     fetch(`/api/intervals/activities/${activities[0].id}/streams`, {
@@ -1992,10 +2357,18 @@ async function loadIntervalsActivities(apiKey: string, silent = false, daysOverr
           currentActivity.elevationGainMeters = s.elevationGainMeters;
           if (editEleInput) editEleInput.value = currentActivity.elevationGainMeters.toString();
         }
-        if (s.gearName && !activities[0].gearName) {
+        if (s.locationCity) {
+          activities[0].locationCity = s.locationCity;
+          currentActivity.locationCity = s.locationCity;
+          syncEditorInputs();
+        }
+        if (s.gearName) {
           activities[0].gearName = s.gearName;
           currentActivity.gearName = s.gearName;
           syncEditorInputs();
+        }
+        if (currentActivity.points && currentActivity.points.length > 0) {
+          ensureActivityCity(currentActivity);
         }
         triggerRender();
       })

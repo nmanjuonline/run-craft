@@ -85,6 +85,7 @@ export interface WorkoutActivity {
   weatherTempC?: number;
   weatherCondition?: string;
   gearName?: string;
+  deviceName?: string;
   polyline?: string; // Encoded summary polyline or raw
   points: GeoPoint[];
   splits: SplitRecord[];
@@ -109,7 +110,25 @@ export type OverlayLayoutId =
   | 'nordic-minimal'     // District Vision / Scandinavian luxury minimalist
   | 'iron-strength'      // Heavy barbell & strength hypertrophy poster with power stats
   | 'crossfit-wod'       // Functional fitness, digital stopwatch timer & heart rate pulse
-  | 'athletic-club';     // Boutique luxury club aesthetic, circular zone arc & clean typography
+  | 'athletic-club'      // Boutique luxury club aesthetic, circular zone arc & clean typography
+  | 'vision-adaptive';   // Dynamic on-the-fly intelligent layout based on photo analysis
+
+/** Artistic variations for the on-the-fly Vision Adaptive layout */
+export type VisionAdaptiveVariant =
+  | 'aero-hud'        // Futuristic glassmorphism cyber HUD with glowing brackets
+  | 'editorial'       // Tracksmith / Vogue luxury sports magazine cover
+  | 'summit-topo'     // Alpine trail adventure with actual elevation silhouette graph
+  | 'swiss-minimal'   // Stark high-contrast typography and minimalist data table
+  | 'cinematic-film'; // 35mm analog cinematography with timestamp & film frame markers
+
+/** Creative bold typography & alignment styles for the activity title */
+export type TitleCreativeStyle =
+  | 'auto'               // Automatically matches the active variant
+  | 'hero-headline'      // Massive bold display headline with ghosted outline watermark
+  | 'side-spine'         // 90-degree rotated vertical spine running along the margin
+  | 'kinetic-speed'      // Slanted bold italic speed title with neon velocity slash
+  | 'editorial-minimal'  // Asymmetric magazine masthead with hairline rules
+  | 'alpine-crest';      // Mountain crest title with integrated ascent altitude badge
 
 export interface PhotoFilterSettings {
   brightness: number; // 0.5 to 1.5, default 1.0
@@ -165,6 +184,9 @@ export interface OverlayConfig {
     hrZones: WidgetPosition;
     splits: WidgetPosition;
   };
+  visionProfile?: any;
+  visionVariant?: VisionAdaptiveVariant;
+  titleCreativeStyle?: TitleCreativeStyle;
 }
 
 export interface ExecutionLimits {

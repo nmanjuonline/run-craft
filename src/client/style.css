@@ -1238,18 +1238,26 @@ body {
   padding: 3px;
   border-radius: 20px;
   gap: 2px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .segment-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
-  padding: 6px 12px;
+  padding: 6px 8px;
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.15s;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .segment-btn.active {
@@ -1735,6 +1743,41 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--text-muted);
   text-align: center;
   line-height: 1.2;
+}
+
+/* ---- VISION ADAPTIVE thumbnail ---- */
+.ltc-vision-adaptive {
+  background: linear-gradient(145deg, #0d2821 0%, #0b0f17 100%);
+  position: relative;
+}
+.ltc-vision-adaptive .ltc-vision-radar {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 75% 75%, rgba(16, 185, 129, 0.3) 0%, transparent 65%);
+}
+.ltc-vision-adaptive .ltc-vision-box {
+  position: absolute;
+  top: 10%;
+  left: 8%;
+  right: 8%;
+  height: 28%;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px dashed rgba(16, 185, 129, 0.7);
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+.ltc-vision-adaptive .ltc-vision-subject {
+  position: absolute;
+  bottom: 8%;
+  right: 12%;
+  font-size: 15px;
+  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.6));
+}
+.ltc-vision-adaptive .ltc-vision-sparkle {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 10px;
 }
 
 /* ---- CLASSIC thumbnail ---- */
